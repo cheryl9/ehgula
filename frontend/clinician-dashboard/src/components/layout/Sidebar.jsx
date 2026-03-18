@@ -1,20 +1,60 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
 import { Heart, Clock } from 'lucide-react'
 import { NAV_ITEMS } from '../../constants'
 import clsx from 'clsx'
 import { useClinicianStore } from '../../store/clinicianStore'
-import { MOCK_ALL_APPOINTMENTS } from '../../api/dataProvider'
+import { getAllAppointments } from '../../api/dataProvider'
 
 export default function Sidebar() {
   const location = useLocation()
   const navigate = useNavigate()
   const patients = useClinicianStore((state) => state.patients.list)
   const patientsLoading = useClinicianStore((state) => state.patients.isLoading)
+  const [appointments, setAppointments] = useState([])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadAppointments = async () => {
+      try {
+        const data = await getAllAppointments()
+        if (isMounted) {
+          setAppointments(data)
+        }
+      } catch {
+        if (isMounted) {
+          setAppointments([])
+        }
+      }
+    }
+
+    loadAppointments()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const patientNameById = useMemo(
+    () => new Map(patients.map((p) => [p.patient_id, p.name])),
+    [patients]
+  )
 
   // Get upcoming appointments sorted by date
   const getUpcomingAppointments = () => {
     const now = new Date()
-    const upcoming = MOCK_ALL_APPOINTMENTS.filter((apt) => apt.date > now && apt.status === 'scheduled')
+    const normalized = appointments.map((apt) => {
+      const patientId = apt.patientId || apt.patient_id
+      return {
+        ...apt,
+        patientId,
+        patientName: apt.patientName || patientNameById.get(patientId) || 'Unknown Patient',
+        date: apt.date instanceof Date ? apt.date : new Date(apt.date),
+      }
+    })
+
+    const upcoming = normalized.filter((apt) => apt.date > now && apt.status === 'scheduled')
     return upcoming.sort((a, b) => a.date - b.date).slice(0, 5) // Show only 5 nearest
   }
 

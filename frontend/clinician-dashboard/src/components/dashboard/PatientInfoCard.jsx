@@ -21,7 +21,6 @@ export default function PatientInfoCard() {
   // Mock additional patient data
   const patientInfo = {
     name: selectedPatient.name,
-    patientId: selectedPatient.patient_id,
     dateOfBirth: 'May 15, 1972',
     age: 52,
     gender: 'Male',
@@ -61,14 +60,6 @@ export default function PatientInfoCard() {
             Full Name
           </p>
           <p className="text-sm font-medium text-slate-900">{patientInfo.name}</p>
-        </div>
-
-        {/* Patient ID */}
-        <div>
-          <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1">
-            Patient ID
-          </p>
-          <p className="text-sm font-medium text-slate-900">{patientInfo.patientId}</p>
         </div>
 
         {/* Date of Birth */}

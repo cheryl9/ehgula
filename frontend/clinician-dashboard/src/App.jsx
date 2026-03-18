@@ -42,6 +42,7 @@ function App() {
             </ProtectedRoute>
           }
         >
+          <Route path="/dashboard" element={<Navigate to="/patients" replace />} />
           <Route path="/patients" element={<Patients />} />
           <Route path="/appointments" element={<Appointments />} />
           <Route path="/briefs" element={<DoctorBriefsPage />} />

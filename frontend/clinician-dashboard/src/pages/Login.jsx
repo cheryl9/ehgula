@@ -29,8 +29,8 @@ export default function Login() {
       const result = await login(email, password)
       
       if (result.success) {
-        // Redirect to dashboard
-        navigate('/dashboard')
+        // Redirect to an existing protected route
+        navigate('/patients')
       } else {
         setError('Login failed. Please try again.')
       }

@@ -1,21 +1,12 @@
 /**
  * Data Provider Layer - Feature Flag Abstraction
- * 
- * This layer provides a single interface for all data queries.
- * It automatically switches between mock data (for development/testing)
- * and real Supabase queries (for production) based on the VITE_USE_MOCK_DATA flag.
- * 
- * Usage:
- *   import { getAllBriefs, getWeeklyDigestsByPatientId, ... } from '../api/dataProvider'
- * 
- * Toggle between mock and real:
- *   Set VITE_USE_MOCK_DATA=true (mock) or VITE_USE_MOCK_DATA=false (real) in .env
  */
 
-// Feature flag: Toggle between mock and real data
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA !== 'false'
 
-// Import mock data functions
+import { supabase } from '../lib/supabase.js'
+
+// Mock imports
 import {
   getAllBriefs as mockGetAllBriefs,
   getBriefById as mockGetBriefById,
@@ -57,62 +48,139 @@ import {
 } from './mock/mockPopulationStats'
 
 /**
+ * Helpers
+ */
+
+const handleError = (error, context) => {
+  if (error) {
+    console.error(`[${context}]`, error)
+    throw error
+  }
+}
+
+const getAssignedPatientIdsForCurrentClinician = async () => {
+  const { data: authData, error: authError } = await supabase.auth.getUser()
+  handleError(authError, 'getAssignedPatientIdsForCurrentClinician.auth')
+
+  const userId = authData?.user?.id
+  if (!userId) {
+    return []
+  }
+
+  const { data: clinicianRow, error: clinicianError } = await supabase
+    .from('clinicians')
+    .select('id')
+    .eq('user_id', userId)
+    .single()
+
+  handleError(clinicianError, 'getAssignedPatientIdsForCurrentClinician.clinician')
+
+  const { data: assignments, error: assignmentError } = await supabase
+    .from('clinician_patient_assignments')
+    .select('patient_id')
+    .eq('clinician_id', clinicianRow.id)
+
+  handleError(assignmentError, 'getAssignedPatientIdsForCurrentClinician.assignments')
+  return (assignments || []).map(a => a.patient_id)
+}
+
+const mapAppointmentRow = (row) => ({
+  id: row.id,
+  patientId: row.patient_id,
+  patientName: row.patients?.name || row.patient_name || null,
+  date: row.date,
+  time: row.time,
+  clinic: row.clinic,
+  clinicianName: row.clinician_name,
+  type: row.type,
+  autoBooked: row.auto_booked,
+  bookingReason: row.booking_reason,
+  urgencyScore: row.urgency_score,
+  status: row.status,
+})
+
+const mapWeeklyDigestRow = (row) => ({
+  id: row.id,
+  patientId: row.patient_id,
+  weekStart: row.week_start,
+  weekEnd: row.week_end,
+  avgFastingGlucose: row.avg_fasting_glucose,
+  avgPostMealGlucose: row.avg_post_meal_glucose,
+  medicationAdherencePct: row.medication_adherence_pct,
+  mealsSkipped: row.meals_skipped,
+  skipPattern: row.skip_pattern,
+  avgSteps: row.avg_steps,
+  stepGoalMetDays: row.step_goal_met_days,
+  sittingEpisodesFlagged: row.sitting_episodes_flagged,
+  agentActionsTaken: row.agent_actions_taken,
+  agentActionsSilent: row.agent_actions_silent,
+  worstDay: row.worst_day,
+  highlights: row.highlights,
+  createdAt: row.created_at,
+})
+
+const mapMealRow = (row) => ({
+  id: row.id,
+  patientId: row.patient_id,
+  date: row.date,
+  mealType: row.meal_type,
+  time: row.time,
+  logged: row.logged,
+  skipped: row.skipped,
+  skipReason: row.skip_reason,
+  description: row.description,
+})
+
+const mapExerciseRow = (row) => ({
+  id: row.id,
+  patientId: row.patient_id,
+  date: row.date,
+  steps: row.steps,
+  stepGoal: row.step_goal,
+  activeMinutes: row.active_minutes,
+  sittingEpisodes: row.sitting_episodes,
+  walkingSessions: row.walking_sessions,
+  heartRate: row.heart_rate,
+})
+
+/**
  * ====================================
  * DOCTOR BRIEFS
  * ====================================
+ * Keep mock for now unless/until you have a real doctor_briefs table or backend endpoint
  */
 
-export const getAllBriefs = () => {
+export const getAllBriefs = async () => {
   if (USE_MOCK_DATA) {
     return mockGetAllBriefs()
   }
-  
-  // TODO: Real implementation - Query Supabase doctor_briefs table
-  // return supabaseClient
-  //   .from('doctor_briefs')
-  //   .select('*')
-  //   .order('created_at', { ascending: false })
+
+  // Keep mock fallback for now
+  return mockGetAllBriefs()
 }
 
-export const getBriefById = (briefId) => {
+export const getBriefById = async (briefId) => {
   if (USE_MOCK_DATA) {
     return mockGetBriefById(briefId)
   }
-  
-  // TODO: Real implementation
-  // return supabaseClient
-  //   .from('doctor_briefs')
-  //   .select('*')
-  //   .eq('id', briefId)
-  //   .single()
+
+  return mockGetBriefById(briefId)
 }
 
-export const getBriefsByPatientId = (patientId) => {
+export const getBriefsByPatientId = async (patientId) => {
   if (USE_MOCK_DATA) {
     return mockGetBriefsByPatientId(patientId)
   }
-  
-  // TODO: Real implementation
-  // return supabaseClient
-  //   .from('doctor_briefs')
-  //   .select('*')
-  //   .eq('patient_id', patientId)
-  //   .order('created_at', { ascending: false })
+
+  return mockGetBriefsByPatientId(patientId)
 }
 
-export const getLatestBriefByPatientId = (patientId) => {
+export const getLatestBriefByPatientId = async (patientId) => {
   if (USE_MOCK_DATA) {
     return mockGetLatestBriefByPatientId(patientId)
   }
-  
-  // TODO: Real implementation
-  // return supabaseClient
-  //   .from('doctor_briefs')
-  //   .select('*')
-  //   .eq('patient_id', patientId)
-  //   .order('created_at', { ascending: false })
-  //   .limit(1)
-  //   .single()
+
+  return mockGetLatestBriefByPatientId(patientId)
 }
 
 /**
@@ -121,31 +189,44 @@ export const getLatestBriefByPatientId = (patientId) => {
  * ====================================
  */
 
-export const getPatientAppointments = () => {
+export const getPatientAppointments = async (patientId) => {
   if (USE_MOCK_DATA) {
     return MOCK_PATIENT_APPOINTMENTS
   }
-  
-  // TODO: Real implementation
-  // const { data, error } = await supabaseClient
-  //   .from('appointments')
-  //   .select('*')
-  //   .eq('patient_id', currentPatientId)
-  // if (error) throw error
-  // return data
+
+  const assignedPatientIds = await getAssignedPatientIdsForCurrentClinician()
+  if (!assignedPatientIds.includes(patientId)) {
+    return []
+  }
+
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('*, patients(name)')
+    .eq('patient_id', patientId)
+    .order('date', { ascending: true })
+
+  handleError(error, 'getPatientAppointments')
+  return data.map(mapAppointmentRow)
 }
 
-export const getAllAppointments = () => {
+export const getAllAppointments = async () => {
   if (USE_MOCK_DATA) {
     return MOCK_ALL_APPOINTMENTS
   }
-  
-  // TODO: Real implementation
-  // const { data, error } = await supabaseClient
-  //   .from('appointments')
-  //   .select('*')
-  // if (error) throw error
-  // return data
+
+  const assignedPatientIds = await getAssignedPatientIdsForCurrentClinician()
+  if (!assignedPatientIds.length) {
+    return []
+  }
+
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('*, patients(name)')
+    .in('patient_id', assignedPatientIds)
+    .order('date', { ascending: true })
+
+  handleError(error, 'getAllAppointments')
+  return data.map(mapAppointmentRow)
 }
 
 /**
@@ -154,54 +235,75 @@ export const getAllAppointments = () => {
  * ====================================
  */
 
-export const getStepsData = () => {
+export const getStepsData = async (patientId) => {
   if (USE_MOCK_DATA) {
     return MOCK_STEPS
   }
-  
-  // TODO: Real implementation - Query health data from Supabase
-  // const { data, error } = await supabaseClient
-  //   .from('activity_data')
-  //   .select('date, steps')
-  //   .order('date', { ascending: false })
-  //   .limit(7)
-  // if (error) throw error
-  // return data
+
+  const { data, error } = await supabase
+    .from('exercise_logs')
+    .select('*')
+    .eq('patient_id', patientId)
+    .order('date', { ascending: true })
+
+  handleError(error, 'getStepsData')
+
+  return data.map(row => ({
+    date: row.date,
+    steps: row.steps,
+    target: row.step_goal,
+  }))
 }
 
-export const getSittingData = () => {
+export const getSittingData = async (patientId) => {
   if (USE_MOCK_DATA) {
     return MOCK_SITTING
   }
-  
-  // TODO: Real implementation
-  // const { data, error } = await supabaseClient
-  //   .from('activity_data')
-  //   .select('start_time, duration, ...')
-  // if (error) throw error
-  // return data
+
+  const { data, error } = await supabase
+    .from('exercise_logs')
+    .select('*')
+    .eq('patient_id', patientId)
+    .order('date', { ascending: true })
+
+  handleError(error, 'getSittingData')
+
+  return data.flatMap(row =>
+    (row.sitting_episodes || []).map(ep => ({
+      date: row.date,
+      start: ep.start,
+      end: ep.end,
+      durationMins: ep.duration_mins,
+      flagged: ep.flagged,
+    }))
+  )
 }
 
-export const getHeartRateData = () => {
+export const getHeartRateData = async (patientId) => {
   if (USE_MOCK_DATA) {
     return MOCK_HEART_RATE
   }
-  
-  // TODO: Real implementation
-  // const { data, error } = await supabaseClient
-  //   .from('vitals')
-  //   .select('timestamp, heart_rate, zone')
-  // if (error) throw error
-  // return data
+
+  const { data, error } = await supabase
+    .from('exercise_logs')
+    .select('*')
+    .eq('patient_id', patientId)
+    .order('date', { ascending: true })
+
+  handleError(error, 'getHeartRateData')
+
+  return data.flatMap(row =>
+    (row.heart_rate || []).map(hr => ({
+      date: row.date,
+      time: hr.time,
+      bpm: hr.bpm,
+      zone: hr.zone,
+    }))
+  )
 }
 
-export const getHRZones = () => {
-  if (USE_MOCK_DATA) {
-    return HR_ZONES
-  }
-  
-  // TODO: Real implementation - could be static or from config table
-  // return HR_ZONES // or fetch from supabase if patient-specific
+export const getHRZones = async () => {
+  return HR_ZONES
 }
 
 /**
@@ -210,37 +312,54 @@ export const getHRZones = () => {
  * ====================================
  */
 
-export const getMealData = () => {
+export const getMealData = async (patientId) => {
   if (USE_MOCK_DATA) {
     return MOCK_MEAL_DATA
   }
-  
-  // TODO: Real implementation
-  // const { data, error } = await supabaseClient
-  //   .from('meal_logs')
-  //   .select('*')
-  //   .order('date', { ascending: false })
-  //   .limit(30)
-  // if (error) throw error
-  // return data
+
+  const { data, error } = await supabase
+    .from('meal_logs')
+    .select('*')
+    .eq('patient_id', patientId)
+    .order('date', { ascending: false })
+
+  handleError(error, 'getMealData')
+  return data.map(mapMealRow)
 }
 
-export const calculateMealAdherence = () => {
+export const calculateMealAdherence = async (patientId) => {
   if (USE_MOCK_DATA) {
     return mockCalculateMealAdherence()
   }
-  
-  // TODO: Real implementation
-  // Fetch actual meal data and calculate adherence from database
+
+  const rows = await getMealData(patientId)
+
+  const total = rows.length
+  const logged = rows.filter(r => r.logged).length
+  const skipped = rows.filter(r => r.skipped).length
+
+  return {
+    totalMeals: total,
+    loggedMeals: logged,
+    skippedMeals: skipped,
+    adherencePct: total > 0 ? Math.round((logged / total) * 100) : 0,
+  }
 }
 
-export const getMealPatterns = () => {
+export const getMealPatterns = async (patientId) => {
   if (USE_MOCK_DATA) {
     return MEAL_PATTERNS
   }
-  
-  // TODO: Real implementation
-  // Analytics query to get meal pattern analysis
+
+  const rows = await getMealData(patientId)
+
+  const grouped = {
+    breakfast: rows.filter(r => r.mealType === 'breakfast'),
+    lunch: rows.filter(r => r.mealType === 'lunch'),
+    dinner: rows.filter(r => r.mealType === 'dinner'),
+  }
+
+  return grouped
 }
 
 /**
@@ -249,37 +368,36 @@ export const getMealPatterns = () => {
  * ====================================
  */
 
-export const getWeeklyDigestsByPatientId = (patientId) => {
+export const getWeeklyDigestsByPatientId = async (patientId) => {
   if (USE_MOCK_DATA) {
     return mockGetWeeklyDigestsByPatientId(patientId)
   }
-  
-  // TODO: Real implementation
-  // const { data, error } = await supabaseClient
-  //   .from('weekly_digests')
-  //   .select('*')
-  //   .eq('patient_id', patientId)
-  //   .order('week_start', { ascending: false })
-  // if (error) throw error
-  // return data
+
+  const { data, error } = await supabase
+    .from('weekly_health_digests')
+    .select('*')
+    .eq('patient_id', patientId)
+    .order('week_start', { ascending: false })
+
+  handleError(error, 'getWeeklyDigestsByPatientId')
+  return data.map(mapWeeklyDigestRow)
 }
 
-export const getAllWeeklyDigests = () => {
+export const getAllWeeklyDigests = async () => {
   if (USE_MOCK_DATA) {
     return mockGetAllWeeklyDigests()
   }
-  
-  // TODO: Real implementation
-  // const { data, error } = await supabaseClient
-  //   .from('weekly_digests')
-  //   .select('*')
-  //   .order('week_start', { ascending: false })
-  // if (error) throw error
-  // return data
+
+  const { data, error } = await supabase
+    .from('weekly_health_digests')
+    .select('*')
+    .order('week_start', { ascending: false })
+
+  handleError(error, 'getAllWeeklyDigests')
+  return data.map(mapWeeklyDigestRow)
 }
 
 export const getWeeklyDigestStatusColor = (status) => {
-  // This is a utility function - works the same for mock and real
   return getStatusColor(status)
 }
 
@@ -289,50 +407,70 @@ export const getWeeklyDigestStatusColor = (status) => {
  * ====================================
  */
 
-export const getAtRiskPatients = () => {
+export const getAtRiskPatients = async () => {
   if (USE_MOCK_DATA) {
     return mockGetAtRiskPatients()
   }
-  
-  // TODO: Real implementation
-  // SELECT * from patient risk analytics table
-  // Order by risk_score DESC
-  // const { data, error } = await supabaseClient
-  //   .from('patient_risk_scores')
-  //   .select('*')
-  //   .order('risk_score', { ascending: false })
-  // if (error) throw error
-  // return data
+
+  // Placeholder real implementation:
+  const { data, error } = await supabase
+    .from('weekly_health_digests')
+    .select('*')
+    .order('medication_adherence_pct', { ascending: true })
+
+  handleError(error, 'getAtRiskPatients')
+  return data.map(mapWeeklyDigestRow)
 }
 
-export const getCohortOverview = () => {
+export const getCohortOverview = async () => {
   if (USE_MOCK_DATA) {
     return mockGetCohortOverview()
   }
-  
-  // TODO: Real implementation
-  // Aggregate query for cohort statistics
-  // SELECT 
-  //   COUNT(*) as total_patients,
-  //   AVG(adherence) as overall_adherence,
-  //   AVG(glucose) as avg_glucose,
-  //   COUNT(CASE WHEN met_goals THEN 1 END) as patients_met_goals
-  // FROM patients
+
+  const { data, error } = await supabase
+    .from('weekly_health_digests')
+    .select('*')
+
+  handleError(error, 'getCohortOverview')
+
+  if (!data.length) {
+    return {
+      totalPatients: 0,
+      avgAdherence: 0,
+      avgGlucose: 0,
+    }
+  }
+
+  const totalPatients = new Set(data.map(d => d.patient_id)).size
+  const avgAdherence =
+    data.reduce((sum, d) => sum + (d.medication_adherence_pct || 0), 0) / data.length
+  const avgGlucose =
+    data.reduce((sum, d) => sum + (d.avg_fasting_glucose || 0), 0) / data.length
+
+  return {
+    totalPatients,
+    avgAdherence: Number(avgAdherence.toFixed(1)),
+    avgGlucose: Number(avgGlucose.toFixed(1)),
+  }
 }
 
-export const getTrends = () => {
+export const getTrends = async () => {
   if (USE_MOCK_DATA) {
     return mockGetTrends()
   }
-  
-  // TODO: Real implementation
-  // Time-series queries for trend data
-  // SELECT date, AVG(adherence), AVG(glucose), SUM(steps) FROM daily_metrics
+
+  const { data, error } = await supabase
+    .from('weekly_health_digests')
+    .select('*')
+    .order('week_start', { ascending: true })
+
+  handleError(error, 'getTrends')
+  return data.map(mapWeeklyDigestRow)
 }
 
 /**
  * ====================================
- * MOCK DATA EXPORTS (for direct access if needed)
+ * MOCK DATA EXPORTS
  * ====================================
  */
 
@@ -350,5 +488,4 @@ export {
   MOCK_POPULATION_STATS
 }
 
-// Feature flag export for debugging/testing
 export { USE_MOCK_DATA }

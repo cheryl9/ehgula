@@ -1,13 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useClinicianStore } from '../store/clinicianStore'
-import { MOCK_ALL_APPOINTMENTS } from '../api/dataProvider'
+import { getAllAppointments } from '../api/dataProvider'
 import UrgencyBadge from '../components/appointments/UrgencyBadge'
 import RescheduleModal from '../components/appointments/RescheduleModal'
 import CancelModal from '../components/appointments/CancelModal'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 
 export default function Appointments() {
-  const [appointments, setAppointments] = useState(MOCK_ALL_APPOINTMENTS)
+  const store = useClinicianStore()
+  const [appointments, setAppointments] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
   const [expandedId, setExpandedId] = useState(null)
   const [rescheduleId, setRescheduleId] = useState(null)
   const [cancelId, setCancelId] = useState(null)
@@ -15,11 +18,70 @@ export default function Appointments() {
   const [filterStatus, setFilterStatus] = useState('all')
   const [sortBy, setSortBy] = useState('date-asc')
 
+  useEffect(() => {
+    if (!store.patients.list.length) {
+      store.actions.fetchPatients()
+    }
+  }, [store])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadAppointments = async () => {
+      setIsLoading(true)
+      setError('')
+      try {
+        const data = await getAllAppointments()
+        if (isMounted) {
+          setAppointments(data)
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err.message || 'Failed to load appointments')
+          setAppointments([])
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadAppointments()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const patientNameById = useMemo(
+    () => new Map(store.patients.list.map((p) => [p.patient_id, p.name])),
+    [store.patients.list]
+  )
+
+  const normalizedAppointments = useMemo(
+    () => appointments.map((apt) => {
+      const patientId = apt.patientId || apt.patient_id
+      const urgencyScore = apt.urgencyScore ?? apt.urgency_score ?? 0
+
+      return {
+        ...apt,
+        patientId,
+        patientName: apt.patientName || patientNameById.get(patientId) || 'Unknown Patient',
+        date: apt.date instanceof Date ? apt.date : new Date(apt.date),
+        doctor: apt.doctor || apt.clinicianName || apt.clinician_name || 'Assigned Clinician',
+        urgencyScore,
+        urgencyLevel: apt.urgencyLevel || (urgencyScore >= 70 ? 'urgent' : 'routine'),
+      }
+    }),
+    [appointments, patientNameById]
+  )
+
   // Get unique patient names for filter
-  const uniquePatients = ['all', ...new Set(appointments.map(a => a.patientName))]
+  const uniquePatients = ['all', ...new Set(normalizedAppointments.map(a => a.patientName))]
 
   // Filter appointments
-  const filteredAppointments = appointments.filter((apt) => {
+  const filteredAppointments = normalizedAppointments.filter((apt) => {
     if (filterPatient !== 'all' && apt.patientName !== filterPatient) return false
     if (filterStatus !== 'all' && apt.status !== filterStatus) return false
     return true
@@ -72,6 +134,7 @@ export default function Appointments() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">All Appointments</h1>
         <p className="text-slate-600 mt-2">Manage appointments across all patients</p>
+        {error && <p className="mt-2 text-sm text-danger-red-700">{error}</p>}
       </div>
 
       {/* Filters */}
@@ -134,12 +197,18 @@ export default function Appointments() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
+            {isLoading && (
+              <tr>
+                <td colSpan="7" className="px-4 py-8 text-center text-slate-600">
+                  Loading appointments...
+                </td>
+              </tr>
+            )}
             {sortedAppointments.map((apt) => (
               <>
                 <tr key={apt.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-4 text-sm">
                     <div className="font-medium text-slate-900">{apt.patientName}</div>
-                    <div className="text-xs text-slate-500">{apt.patientId}</div>
                   </td>
                   <td className="px-4 py-4 text-sm">
                     <div className="font-medium text-slate-900">{formatDate(apt.date)}</div>
@@ -227,7 +296,7 @@ export default function Appointments() {
           </tbody>
         </table>
 
-        {sortedAppointments.length === 0 && (
+        {!isLoading && sortedAppointments.length === 0 && (
           <div className="p-12 text-center">
             <p className="text-slate-600 text-lg">No appointments found matching your filters.</p>
           </div>

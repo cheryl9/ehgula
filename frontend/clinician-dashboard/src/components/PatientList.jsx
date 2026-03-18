@@ -4,7 +4,7 @@ import PatientCard from './PatientCard'
 
 /**
  * PatientList - Searchable patient list for sidebar
- * Allows filtering by name, ID, or risk level
+ * Allows filtering by name or risk level
  */
 export default function PatientList({ patients, selectedPatientId, isLoading, error }) {
   const [searchTerm, setSearchTerm] = useState('')
@@ -17,9 +17,7 @@ export default function PatientList({ patients, selectedPatientId, isLoading, er
     return patients.filter((patient) => {
       // Search filter
       const searchLower = searchTerm.toLowerCase()
-      const matchesSearch =
-        patient.name.toLowerCase().includes(searchLower) ||
-        patient.patient_id.toLowerCase().includes(searchLower)
+      const matchesSearch = patient.name.toLowerCase().includes(searchLower)
 
       // Risk level filter
       const matchesRisk =

@@ -50,7 +50,6 @@ export default function Topbar() {
                 <h2 className="text-sm font-semibold text-slate-900">
                   {selectedPatient.name}
                 </h2>
-                <p className="text-xs text-slate-500">{selectedPatient.patient_id}</p>
               </div>
               {/* Risk Badge */}
               <span
