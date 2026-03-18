@@ -1,4 +1,4 @@
-from database.supabase_client import supabase
+from supabase_client import supabase
 from datetime import datetime
 
 
@@ -250,10 +250,11 @@ def write_glucose_flag(patient_id: str, value: float, flag_type: str):
         outcome="flagged_for_doctor_brief"
     )
 
+
 # ─────────────────────────────────────────────
 # EXERCISE WRITE
 # ─────────────────────────────────────────────
- 
+
 def write_exercise_flag(patient_id: str, steps: int,
                          sitting_hours: float, glucose_value: float = None):
     """
@@ -265,7 +266,7 @@ def write_exercise_flag(patient_id: str, steps: int,
     )
     if glucose_value:
         detail += f" Combined with high glucose: {glucose_value} mmol/L."
- 
+
     write_agent_action(
         patient_id=patient_id,
         action_type="exercise_clinical_alert",
@@ -274,4 +275,3 @@ def write_exercise_flag(patient_id: str, steps: int,
         silent=True,
         outcome="nudge_sent_to_patient"
     )
- 

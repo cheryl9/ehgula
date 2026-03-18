@@ -37,15 +37,21 @@ def next_meeting_end(meetings: list) -> str | None:
 
 def get_dose_status(dose_logs: list, med_name: str, scheduled_time: str) -> str | None:
     """
-    Looks up today's dose log for a specific medication and time.
+    Looks up today's dose log for a specific medication and scheduled time.
+    dose_logs rows have: scheduled_time (time), status, medication_plans (joined name)
     Returns status string or None if no log entry exists yet.
     """
     for log in dose_logs:
-        doses = log.get("doses", [])
-        for dose in doses:
-            if (dose["medication"].lower() == med_name.lower() and
-                    dose["scheduled_time"] == scheduled_time):
-                return dose.get("status")
+        # medication name comes from joined medication_plans
+        log_med_name = ""
+        if log.get("medication_plans"):
+            log_med_name = log["medication_plans"].get("name", "")
+        
+        log_scheduled = str(log.get("scheduled_time", ""))[:5]  # HH:MM
+        check_time    = str(scheduled_time)[:5]
+
+        if log_med_name.lower() == med_name.lower() and log_scheduled == check_time:
+            return log.get("status")
     return None
 
 

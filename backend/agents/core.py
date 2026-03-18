@@ -2,19 +2,18 @@ from langgraph.graph import StateGraph, END
 from typing import TypedDict, List
 from datetime import datetime
 
-from agent.tools import (
+from agents.tools import (
     tool_glucose_monitor,
     tool_medication_tracker,
     tool_meal_skip_detection,
     tool_exercise_monitor,
 )
 from ml_models.sealion_client import ask_sealion
-from agent.writer import (
+from agents.writer import (
     write_agent_action,
     write_meal_skip_detected,
     write_glucose_flag
 )
-from config import PATIENT_ID as PATIENT_ID_FALLBACK
 
 
 # ─────────────────────────────────────────────
@@ -181,7 +180,7 @@ def act(state: PatientState) -> PatientState:
 
         # Write meal skip prediction to audit log
         write_meal_skip_detected(
-            patient_id=data.get("id", PATIENT_ID_FALLBACK),
+            patient_id=data.get("id"),
             meal_type="lunch",
             confidence_score=score,
             signals=skip_signals[:3]
@@ -199,7 +198,7 @@ def act(state: PatientState) -> PatientState:
         if glucose_readings:
             latest_value = glucose_readings[-1]["value"]
             write_glucose_flag(
-                patient_id=data.get("id", PATIENT_ID_FALLBACK),
+                patient_id=data.get("id"),
                 value=latest_value,
                 flag_type="high"
             )
@@ -209,7 +208,7 @@ def act(state: PatientState) -> PatientState:
     # act() only needs to log urgent clinical connections to actions
     steps         = data.get("wearable", {}).get("steps_today", 0)
     sitting_hours = data.get("wearable", {}).get("sitting_hours", 0)
- 
+
     if any("CLINICAL CONNECTION" in obs for obs in observations):
         actions.append(
             f"CLINICAL ALERT: Low activity + high glucose detected — "
@@ -217,7 +216,7 @@ def act(state: PatientState) -> PatientState:
         )
         # Write to audit log so clinician can see it
         write_agent_action(
-            patient_id=data.get("id", PATIENT_ID_FALLBACK),
+            patient_id=data.get("id"),
             action_type="exercise_clinical_alert",
             detail=(
                 f"Low activity ({steps} steps, {sitting_hours}h sitting) combined with "
@@ -229,7 +228,7 @@ def act(state: PatientState) -> PatientState:
         )
     elif steps < 3000:
         actions.append(f"NUDGE: Only {steps} steps today — suggest walk.")
- 
+
     audit.append(
         f"[{datetime.now().strftime('%H:%M:%S')}] ACT: "
         f"{len(actions)} actions, {len(notifications)} notifications, "

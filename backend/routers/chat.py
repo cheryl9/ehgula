@@ -1,13 +1,12 @@
 from fastapi import APIRouter
-from agent.core import agent
-from agent.memory import load_patient_data
-from agent.writer import write_appointment, write_agent_action, write_appointment_reminder
+from agents.core import agent
+from agents.memory import load_patient_data
+from agents.writer import write_appointment, write_agent_action, write_appointment_reminder
 from ml_models.sealion_client import (
     ask_sealion_with_history,
     generate_booking_confirmation_ask,
     generate_booking_confirmation
 )
-from config import PATIENT_ID
 from datetime import datetime, timedelta
 
 router = APIRouter()
@@ -48,11 +47,15 @@ def parse_alternative_choice(message: str) -> int:
 def chat(payload: dict):
     session_id   = payload.get("session_id", "default")
     user_message = payload.get("message", "").strip()
+    patient_id   = payload.get("patient_id")
 
     if not user_message:
         return {"error": "No message provided"}
 
-    patient_data = load_patient_data(patient_id=PATIENT_ID)
+    if not patient_id:
+        return {"error": "patient_id is required"}
+
+    patient_data = load_patient_data(patient_id=patient_id)
 
     if session_id not in conversation_histories:
         conversation_histories[session_id] = []
@@ -70,7 +73,7 @@ def chat(payload: dict):
             # Book the pending slot
             write_appointment(patient_data, pending_slot, urgency_score=booking.get("urgency_score", 65))
             write_agent_action(
-                patient_id=PATIENT_ID,
+                patient_id=patient_id,
                 action_type="appointment_confirmed",
                 detail=f"Patient confirmed: {pending_slot['clinic']} {pending_slot['date']} {pending_slot['time']}",
                 triggered_by="chat_confirmation",
@@ -103,7 +106,7 @@ def chat(payload: dict):
         elif intent == "declined" and not alternatives:
             # No alternatives available
             write_agent_action(
-                patient_id=PATIENT_ID,
+                patient_id=patient_id,
                 action_type="appointment_declined",
                 detail="Patient declined — no alternatives available",
                 triggered_by="chat_confirmation",
@@ -148,7 +151,7 @@ def chat(payload: dict):
 
             write_appointment(patient_data, chosen_slot, urgency_score=booking.get("urgency_score", 65))
             write_agent_action(
-                patient_id=PATIENT_ID,
+                patient_id=patient_id,
                 action_type="appointment_confirmed",
                 detail=f"Patient chose alternative: {chosen_slot['clinic']} {chosen_slot['date']} {chosen_slot['time']}",
                 triggered_by="chat_alternative_choice",
@@ -166,7 +169,7 @@ def chat(payload: dict):
             remind_date_nice = (datetime.now() + timedelta(days=remind_days)).strftime("%A, %d %B")
 
             write_agent_action(
-                patient_id=PATIENT_ID,
+                patient_id=patient_id,
                 action_type="appointment_declined_all",
                 detail=f"Patient declined all slots — reminder written for {remind_date}",
                 triggered_by="chat_alternative_choice",
@@ -175,7 +178,7 @@ def chat(payload: dict):
             )
 
             write_appointment_reminder(
-                patient_id=PATIENT_ID,
+                patient_id=patient_id,
                 remind_on=remind_date,
                 reason="Patient declined all suggested appointment slots",
                 urgency_score=booking.get("urgency_score", 65)
@@ -245,14 +248,16 @@ def chat(payload: dict):
 
     else:
         # Normal conversational reply
+        # conditions is a list wrapping the single condition string from patients table
+        conditions_str = ', '.join(patient_data['conditions']) if patient_data.get('conditions') else patient_data.get('condition', 'a chronic condition')
         system_prompt = f"""You are a warm, friendly AI health companion for {patient_data['name']},
-a {patient_data['age']}-year-old patient with {', '.join(patient_data['conditions'])}.
+a {patient_data['age']}-year-old patient with {conditions_str}.
 
 Speak in friendly Singlish-influenced English. Be conversational, not clinical.
 Keep replies short — 2 to 3 sentences max unless the patient asks for more detail.
 Never dump all information at once. Respond naturally to what the patient just said.
 
-Current health context (use to inform replies, do not recite):
+Current health context from agent (use to inform replies, do not recite):
 {obs_summary}
 
 Alert level: {alert_level}"""

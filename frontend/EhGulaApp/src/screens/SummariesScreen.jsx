@@ -11,7 +11,6 @@ import {
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { usePatientData } from '../hooks/usePatientData'
-import { supabase } from '../supabase'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 
