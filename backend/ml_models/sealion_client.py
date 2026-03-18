@@ -79,3 +79,37 @@ Missed medications: {patient_data.get('missed_medications')}
 Steps today: {patient_data.get('wearable', {}).get('steps_today')}"""
 
     return ask_sealion(system_prompt, user_message)
+
+## ─────────────────────────────────────────────
+# APPOINTMENT BOOKING CONFIRMATION MESSAGES
+# ─────────────────────────────────────────────
+
+def generate_booking_confirmation_ask(patient_data: dict, slot: dict) -> str:
+    """Asks the patient for confirmation before booking."""
+    return ask_sealion(
+        "You are a warm health companion. Ask the patient to confirm an appointment in friendly Singlish. Keep it to 3 sentences max.",
+        f"""The AI has decided this patient needs an urgent clinic visit.
+Patient: {patient_data['name']}
+Suggested slot: {slot['date']} at {slot['time']} at {slot['clinic']}
+Reason: Blood sugar has been unstable and medications have been missed.
+
+Ask the patient warmly if it is okay to book this slot for them.
+End with a simple yes/no question."""
+    )
+
+def generate_booking_confirmation(patient_data: dict, slot: dict) -> str:
+    """Sends full appointment details after patient confirms."""
+    return ask_sealion(
+        "You are a warm health companion confirming an appointment. Be friendly and clear. Give all the details the patient needs.",
+        f"""The patient has confirmed their appointment. Give them the full details.
+Patient: {patient_data['name']}
+Appointment: {slot['date']} at {slot['time']}
+Clinic: {slot['clinic']}
+
+Include:
+1. Confirmed date and time clearly
+2. Clinic name and that it is at the polyclinic
+3. Remind them to bring their NRIC and medication list
+4. Wish them well
+Speak in warm Singlish-influenced English."""
+    )
