@@ -338,140 +338,137 @@ export default function ChatScreen({ onNavigate }) {
   // Render
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Chat</Text>
-          {dataLoading && <ActivityIndicator size="small" color="#5BAD8F" style={{ marginRight: 8 }} />}
-          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-            <MaterialCommunityIcons name="logout" size={20} color="#E53935" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Tabs */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsContent}
-          style={styles.tabsScroll}
+    <View style={styles.wrapper}>
+      <SafeAreaView style={styles.safe}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          {TABS.map((tab, i) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tab, activeTab === i && styles.tabActive]}
-              onPress={() => handleTabChange(i)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.tabText, activeTab === i && styles.tabTextActive]}>{tab}</Text>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Chat</Text>
+            {dataLoading && <ActivityIndicator size="small" color="#5BAD8F" style={{ marginRight: 8 }} />}
+            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+              <MaterialCommunityIcons name="logout" size={20} color="#E53935" />
             </TouchableOpacity>
-          ))}
-        </ScrollView>
+          </View>
 
-        {/* Messages */}
-        <ScrollView
-          ref={scrollRef}
-          style={styles.messages}
-          contentContainerStyle={styles.messagesContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <ChatBubble sender="agent" message="Hello there!" />
-          <ChatBubble sender="agent" message="Ask me a question, or select any of the options below to start:" />
-
-          {messages.map((msg) => (
-            <ChatBubble key={msg.id} sender={msg.sender} message={msg.message} time={msg.time} />
-          ))}
-
-          {isThinking && (
-            <AgentThinking
-              steps={thinkingSteps}
-              onComplete={() => {
-                setIsThinking(false)
-                addAgentResponse(lastQuestion.current)
-              }}
-            />
-          )}
-
-          {/* Suggestion chips — show while no messages sent yet */}
-          {showSuggestions && (
-            dataLoading ? (
-              <View style={styles.suggestionLoading}>
-                <ActivityIndicator size="small" color="#5BAD8F" />
-                <Text style={styles.suggestionLoadingText}>Loading your health data…</Text>
-              </View>
-            ) : (
-              suggestions.map((q, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={styles.suggestion}
-                  onPress={() => handleSend(q)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.suggestionText}>{q}</Text>
-                </TouchableOpacity>
-              ))
-            )
-          )}
-        </ScrollView>
-
-        {/* Input area */}
-        <View style={styles.inputArea}>
-          <Image source={require('../assets/mascot.png')} style={styles.mascot} resizeMode="contain" />
-          <View style={styles.inputBox}>
-            <TextInput
-              style={styles.input}
-              placeholder="What would you like to know?"
-              placeholderTextColor="#AAAAAA"
-              value={input}
-              onChangeText={setInput}
-              multiline
-              returnKeyType="send"
-              blurOnSubmit
-              onSubmitEditing={() => handleSend()}
-            />
-            <View style={styles.inputActions}>
-              <TouchableOpacity style={styles.actionBtn}>
-                <MaterialCommunityIcons name="checkbox-blank" size={18} color="#555555" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionBtn}>
-                <MaterialCommunityIcons name="code-braces" size={18} color="#555555" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionBtn}>
-                <MaterialCommunityIcons name="microphone" size={18} color="#555555" />
-              </TouchableOpacity>
+          {/* Tabs */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabsContent}
+            style={styles.tabsScroll}
+          >
+            {TABS.map((tab, i) => (
               <TouchableOpacity
-                style={[styles.sendBtn, input.trim() && styles.sendBtnActive]}
-                onPress={() => handleSend()}
-                disabled={!input.trim()}
+                key={tab}
+                style={[styles.tab, activeTab === i && styles.tabActive]}
+                onPress={() => handleTabChange(i)}
+                activeOpacity={0.7}
               >
-                <MaterialCommunityIcons name="arrow-up" size={18} color="#FFFFFF" />
+                <Text style={[styles.tabText, activeTab === i && styles.tabTextActive]}>{tab}</Text>
               </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Messages */}
+          <ScrollView
+            ref={scrollRef}
+            style={styles.messages}
+            contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <ChatBubble sender="agent" message="Hello there!" />
+            <ChatBubble sender="agent" message="Ask me a question, or select any of the options below to start:" />
+
+            {messages.map((msg) => (
+              <ChatBubble key={msg.id} sender={msg.sender} message={msg.message} time={msg.time} />
+            ))}
+
+            {isThinking && (
+              <AgentThinking
+                steps={thinkingSteps}
+                onComplete={() => {
+                  setIsThinking(false)
+                  addAgentResponse(lastQuestion.current)
+                }}
+              />
+            )}
+
+            {/* Suggestion chips — show while no messages sent yet */}
+            {showSuggestions && (
+              dataLoading ? (
+                <View style={styles.suggestionLoading}>
+                  <ActivityIndicator size="small" color="#5BAD8F" />
+                  <Text style={styles.suggestionLoadingText}>Loading your health data…</Text>
+                </View>
+              ) : (
+                suggestions.map((q, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.suggestion}
+                    onPress={() => handleSend(q)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.suggestionText}>{q}</Text>
+                  </TouchableOpacity>
+                ))
+              )
+            )}
+          </ScrollView>
+
+          {/* Input area */}
+          <View style={styles.inputArea}>
+            <Image source={require('../assets/mascot.png')} style={styles.mascot} resizeMode="contain" />
+            <View style={styles.inputBox}>
+              <TextInput
+                style={styles.input}
+                placeholder="What would you like to know?"
+                placeholderTextColor="#AAAAAA"
+                value={input}
+                onChangeText={setInput}
+                multiline
+                returnKeyType="send"
+                blurOnSubmit
+                onSubmitEditing={() => handleSend()}
+              />
+              <View style={styles.inputActions}>
+                <TouchableOpacity
+                  style={[styles.sendBtn, input.trim() && styles.sendBtnActive]}
+                  onPress={() => handleSend()}
+                  disabled={!input.trim()}
+                >
+                  <MaterialCommunityIcons name="arrow-up" size={18} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
 
-        {/* Bottom tab bar */}
-        <View style={styles.bottomTabBar}>
-          <TouchableOpacity style={styles.bottomTabItem} onPress={() => onNavigate?.('summaries')}>
-            <MaterialCommunityIcons name="file-document" size={24} color="#555555" />
-            <Text style={styles.bottomTabLabel}>Summaries</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.bottomTabItem} onPress={() => onNavigate?.('chat')}>
-            <MaterialCommunityIcons name="chat-outline" size={24} color="#5BAD8F" />
-            <Text style={[styles.bottomTabLabel, styles.bottomTabLabelActive]}>Chats</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.bottomTabItem} onPress={() => onNavigate?.('reminders')}>
-            <MaterialCommunityIcons name="clock-outline" size={24} color="#555555" />
-            <Text style={styles.bottomTabLabel}>Reminders</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      {/* Bottom tab bar — outside SafeAreaView to extend to screen edge */}
+      <View style={styles.bottomTabBar}>
+        <TouchableOpacity style={styles.bottomTabItem} onPress={() => onNavigate?.('summaries')}>
+          <MaterialCommunityIcons name="file-document" size={24} color="#555555" />
+          <Text style={styles.bottomTabLabel}>Summaries</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.bottomTabItem} onPress={() => onNavigate?.('chat')}>
+          <MaterialCommunityIcons name="chat-outline" size={24} color="#5BAD8F" />
+          <Text style={[styles.bottomTabLabel, styles.bottomTabLabelActive]}>Chat</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.bottomTabItem} onPress={() => onNavigate?.('reminders')}>
+          <MaterialCommunityIcons name="clock-outline" size={24} color="#555555" />
+          <Text style={styles.bottomTabLabel}>Reminders</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.bottomTabItem} onPress={() => onNavigate?.('logs')}>
+          <MaterialCommunityIcons name="notebook-outline" size={24} color="#555555" />
+          <Text style={styles.bottomTabLabel}>Logs</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   )
 }
 
@@ -480,6 +477,7 @@ export default function ChatScreen({ onNavigate }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  wrapper: { flex: 1, backgroundColor: '#FFFFFF' },
   safe: { flex: 1, backgroundColor: '#FFFFFF' },
   flex: { flex: 1 },
 
@@ -503,7 +501,7 @@ const styles = StyleSheet.create({
   suggestionLoadingText: { fontSize: 13, color: '#888' },
 
   inputArea:   { backgroundColor: '#E8F5E9', paddingHorizontal: 16, paddingTop: 12, flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  mascot:      { width: 56, height: 56 },
+  mascot:      { width: 90, height: 90 },
   inputBox:    { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 16, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8, minHeight: 80, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
   input:       { fontSize: 14, color: '#1A1A1A', minHeight: 36, maxHeight: 100 },
   inputActions:{ flexDirection: 'row', alignItems: 'center', marginTop: 8 },

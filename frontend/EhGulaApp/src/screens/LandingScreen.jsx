@@ -28,6 +28,13 @@ const FEATURES = [
     desc: 'An overview of all actions to be taken.',
     screen: 'reminders',
   },
+  {
+    icon: 'notebook-outline',
+    iconBg: '#F3E5F5',
+    title: 'Logs',
+    desc: 'Track your meals and exercise activity.',
+    screen: 'logs',
+  },
 ]
 
 export default function LandingScreen({ onNavigate }) {
@@ -96,16 +103,6 @@ export default function LandingScreen({ onNavigate }) {
             activeOpacity={0.85}
           >
             <Text style={s.startBtnText}>Let's start!</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Bottom bar (decorative) */}
-        <View style={s.bottomBar}>
-          <Text style={s.bottomBarIcon}>⊞</Text>
-          <Text style={s.bottomBarIcon}>{'</>'}</Text>
-          <Text style={s.bottomBarIcon}>🎙</Text>
-          <TouchableOpacity style={s.bottomBarSend}>
-            <Text style={s.bottomBarSendIcon}>↑</Text>
           </TouchableOpacity>
         </View>
 

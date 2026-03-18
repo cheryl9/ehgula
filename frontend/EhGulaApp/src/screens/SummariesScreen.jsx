@@ -270,19 +270,17 @@ export default function SummariesScreen({ onNavigate }) {
 
   // ── Main render ────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={s.safe}>
-      <ScrollView
-        style={s.scroll}
-        contentContainerStyle={s.content}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor="#5BAD8F" />}
-      >
+    <View style={s.wrapper}>
+      <SafeAreaView style={s.safe}>
+        <ScrollView
+          style={s.scroll}
+          contentContainerStyle={s.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor="#5BAD8F" />}
+        >
         {/* Title row */}
         <View style={s.titleRow}>
           <Text style={s.pageTitle}>Summary</Text>
-          <TouchableOpacity style={s.addLogBtn} onPress={() => onNavigate('reminders')}>
-            <Text style={s.addLogText}>Add log</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Period pills */}
@@ -468,7 +466,8 @@ export default function SummariesScreen({ onNavigate }) {
         </View>
 
         <View style={{ height: 16 }} />
-      </ScrollView>
+        </ScrollView>
+      </SafeAreaView>
 
       {/* Bottom tab bar */}
       <View style={s.tabBar}>
@@ -478,14 +477,18 @@ export default function SummariesScreen({ onNavigate }) {
         </TouchableOpacity>
         <TouchableOpacity style={s.tabItem} onPress={() => onNavigate?.('chat')}>
           <MaterialCommunityIcons name="chat-outline" size={24} color="#555555" />
-          <Text style={s.tabLabel}>Chats</Text>
+          <Text style={s.tabLabel}>Chat</Text>
         </TouchableOpacity>
         <TouchableOpacity style={s.tabItem} onPress={() => onNavigate?.('reminders')}>
           <MaterialCommunityIcons name="clock-outline" size={24} color="#555555" />
           <Text style={s.tabLabel}>Reminders</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={s.tabItem} onPress={() => onNavigate?.('logs')}>
+          <MaterialCommunityIcons name="notebook-outline" size={24} color="#555555" />
+          <Text style={s.tabLabel}>Logs</Text>
+        </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -502,6 +505,7 @@ const TEXT_MID    = '#555555'
 const TEXT_LIGHT  = '#999999'
 
 const s = StyleSheet.create({
+  wrapper: { flex: 1, backgroundColor: '#FFFFFF' },
   safe:    { flex: 1, backgroundColor: PAGE_BG },
   scroll:  { flex: 1 },
   content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 },
@@ -579,7 +583,7 @@ const s = StyleSheet.create({
   sendBtnText:  { color: '#fff', fontWeight: '700', fontSize: 13 },
 
   tabBar:         { flexDirection: 'row', backgroundColor: LIGHT_GREEN, paddingVertical: 10, paddingBottom: Platform.OS === 'ios' ? 24 : 12, justifyContent: 'space-around' },
-  tabItem:        { alignItems: 'center', gap: 3 },
+  tabItem:        { alignItems: 'center', gap: 4 },
   tabLabel:       { fontSize: 12, color: TEXT_MID, fontWeight: '500' },
   tabLabelActive: { color: GREEN, fontWeight: '700' },
 
