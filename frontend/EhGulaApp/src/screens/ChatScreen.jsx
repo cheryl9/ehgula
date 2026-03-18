@@ -1,7 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // src/screens/ChatScreen.jsx
-// Mock data imports removed. Suggestion chips and agent context now come
-// from live Supabase data via usePatientData.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useRef, useEffect, useMemo } from 'react'
@@ -13,6 +11,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { supabase }        from '../supabase'
 import { usePatientData }  from '../hooks/usePatientData'
+import { useChat }         from '../hooks/useChat'          // ← NEW
 import ChatBubble          from '../components/ChatBubble'
 import AgentThinking       from '../components/AgentThinking'
 
@@ -23,12 +22,10 @@ import AgentThinking       from '../components/AgentThinking'
 const TABS     = ['General', 'Medications', 'Appointments', 'Meals', 'Exercise']
 const TAB_KEYS = ['general', 'medications', 'appointments', 'meals', 'exercise']
 
-// Tabs that show the agentic thinking animation before responding
 const THINKING_TABS = ['appointments', 'medications', 'meals', 'exercise']
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Thinking steps — shown in AgentThinking animation per tab
-// (These describe what the AI agent is doing — no patient data needed)
+// Thinking steps per tab
 // ─────────────────────────────────────────────────────────────────────────────
 
 const AGENT_STEPS = {
@@ -69,11 +66,10 @@ const AGENT_STEPS = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Suggestion chips — generated from live patient data
+// Suggestion chips built from live patient data
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildSuggestions(tabKey, data) {
-  // Fallback static suggestions if data isn't loaded yet
   const static_ = {
     general: [
       'How am I doing overall this week?',
@@ -104,7 +100,6 @@ function buildSuggestions(tabKey, data) {
 
   if (!data) return static_[tabKey] || []
 
-  // Build dynamic, context-aware chips from real data
   const chips = []
 
   if (tabKey === 'medications') {
@@ -120,7 +115,7 @@ function buildSuggestions(tabKey, data) {
     if (confirmed) chips.push(`When is my next appointment with ${confirmed.clinician_name || 'my doctor'}?`)
     const completed = (data.appointments || []).filter((a) => a.status === 'completed')
     if (completed.length) {
-      const last     = new Date(completed[completed.length - 1].date)
+      const last      = new Date(completed[completed.length - 1].date)
       const daysSince = Math.floor((Date.now() - last.getTime()) / 86400000)
       chips.push(`It's been ${daysSince} days since my last visit. Should I go again?`)
     }
@@ -128,7 +123,7 @@ function buildSuggestions(tabKey, data) {
   }
 
   if (tabKey === 'meals') {
-    const today  = new Date().toISOString().split('T')[0]
+    const today    = new Date().toISOString().split('T')[0]
     const todayLog = (data.mealLogs || []).find((m) => m.date === today)
     if (todayLog?.lunch_skipped) chips.push('I skipped lunch again — how does that affect my glucose?')
     chips.push('Suggest a diabetic-friendly meal near me.')
@@ -153,7 +148,6 @@ function buildSuggestions(tabKey, data) {
     chips.push('Give me a summary of my week.')
   }
 
-  // Fill up to 3 chips
   const fallback = static_[tabKey] || []
   while (chips.length < 3 && fallback.length > chips.length) {
     const fb = fallback[chips.length]
@@ -164,88 +158,46 @@ function buildSuggestions(tabKey, data) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Build patient context string to send to AI backend
-// ─────────────────────────────────────────────────────────────────────────────
-
-function buildPatientContext(tabKey, data) {
-  if (!data) return ''
-  const lines = []
-
-  if (data.patient) {
-    lines.push(`Patient: ${data.patient.name || 'Unknown'}, Age ${data.patient.age || '—'}, ${data.patient.condition || 'Diabetes'}`)
-  }
-
-  if (tabKey === 'medications' || tabKey === 'general') {
-    const missed = (data.doseLogs || []).filter((d) => d.status === 'missed').map((d) => d.medication_name)
-    if (missed.length) lines.push(`Missed doses today: ${missed.join(', ')}`)
-    const adherence = data.doseLogsWeek?.length
-      ? Math.round((data.doseLogsWeek.filter((d) => d.status === 'taken').length / data.doseLogsWeek.length) * 100)
-      : null
-    if (adherence != null) lines.push(`Weekly medication adherence: ${adherence}%`)
-  }
-
-  if (tabKey === 'appointments' || tabKey === 'general') {
-    const unstable = (data.glucose || []).filter((r) => r.value_mmol > 9 || r.value_mmol < 4).length
-    if (unstable) lines.push(`Unstable glucose readings this week: ${unstable}`)
-    const completed = (data.appointments || []).filter((a) => a.status === 'completed')
-    if (completed.length) {
-      const daysSince = Math.floor((Date.now() - new Date(completed[completed.length - 1].date).getTime()) / 86400000)
-      lines.push(`Days since last clinic visit: ${daysSince}`)
-    }
-  }
-
-  if (tabKey === 'meals' || tabKey === 'general') {
-    const today    = new Date().toISOString().split('T')[0]
-    const todayLog = (data.mealLogs || []).find((m) => m.date === today)
-    if (todayLog?.lunch_skipped) lines.push('Lunch was skipped today.')
-    const skipCount = (data.mealLogs || []).filter((m) => m.lunch_skipped).length
-    if (skipCount > 1) lines.push(`Lunch skipped ${skipCount} times this week.`)
-  }
-
-  if (tabKey === 'exercise' || tabKey === 'general') {
-    if (data.exercise) {
-      lines.push(`Steps today: ${data.exercise.steps ?? 0} / ${data.exercise.step_goal ?? 10000}`)
-      const sitting = (data.exercise.sitting_episodes || []).filter((s) => s.flagged)
-      if (sitting.length) lines.push(`Prolonged sitting episodes: ${sitting.length}`)
-    }
-  }
-
-  return lines.join('\n')
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Main Screen
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function ChatScreen({ onNavigate }) {
   const { data, loading: dataLoading } = usePatientData()
 
+  // ── useChat replaces the hardcoded fetch + local message state ──────────────
+  const {
+    messages,
+    thinking:      chatThinking,   // true while waiting for backend reply
+    error:         chatError,
+    pendingBooking,
+    alertLevel,
+    sendMessage,
+    clearChat,
+  } = useChat()
+
   const [activeTab,       setActiveTab]       = useState(0)
-  const [messages,        setMessages]        = useState([])
   const [input,           setInput]           = useState('')
   const [isThinking,      setIsThinking]      = useState(false)
   const [thinkingSteps,   setThinkingSteps]   = useState([])
   const [showSuggestions, setShowSuggestions] = useState(true)
-  const scrollRef     = useRef(null)
-  const lastQuestion  = useRef('')
+  const scrollRef    = useRef(null)
+  const lastQuestion = useRef('')
 
-  const tabKey = TAB_KEYS[activeTab]
-
-  // Dynamic suggestions from live data
+  const tabKey     = TAB_KEYS[activeTab]
   const suggestions = useMemo(() => buildSuggestions(tabKey, data), [tabKey, data])
 
-  // Auto-scroll on new messages
+  // Auto-scroll on new messages or thinking state change
   useEffect(() => {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100)
-  }, [messages, isThinking])
+  }, [messages, isThinking, chatThinking])
 
   const handleTabChange = (index) => {
     setActiveTab(index)
-    setMessages([])
-    setInput('')
     setIsThinking(false)
     setShowSuggestions(true)
+    setInput('')
     lastQuestion.current = ''
+    clearChat()  // clears backend conversation history for the new tab
   }
 
   const getNow = () => {
@@ -257,66 +209,28 @@ export default function ChatScreen({ onNavigate }) {
     return `${h}:${m.toString().padStart(2, '0')} ${ampm}`
   }
 
-  // ── Agent response — calls your AI backend ──────────────────────────────────
-  // Wired up for your teammate's SEA-LION backend.
-  // Replace the URL below when the backend endpoint is ready.
-  const addAgentResponse = async (question) => {
-    const patientContext = buildPatientContext(tabKey, data)
+// ── Send message
+const handleSend = (text) => {
+  const question = (text || input).trim()
+  if (!question) return
 
-    let responseText = ''
+  lastQuestion.current = question
+  setInput('')
+  setShowSuggestions(false)
 
-    try {
-      // ── TODO: swap this URL for your teammate's actual backend endpoint ──
-      const res = await fetch('https://YOUR_BACKEND_URL/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message:        question,
-          tab:            tabKey,
-          patientContext, // patient health data injected as context
-        }),
-      })
-
-      if (!res.ok) throw new Error(`Backend returned ${res.status}`)
-      const responseData = await res.json()
-      responseText = responseData.reply || responseData.message || ''
-    } catch (e) {
-      // Fallback while backend is not yet connected
-      console.warn('[ChatScreen] Backend not connected:', e.message)
-      responseText = `I've noted your question about "${question}". Once the AI backend is connected, I'll give you a detailed answer based on your health data.`
-
-      if (patientContext) {
-        responseText += `\n\nHere's the context I'd use:\n${patientContext}`
-      }
-    }
-
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now() + 1, sender: 'agent', message: responseText, time: getNow() },
-    ])
+  if (THINKING_TABS.includes(tabKey)) {
+    setThinkingSteps(AGENT_STEPS[tabKey] || AGENT_STEPS.general)
+    setIsThinking(true)
+  } else {
+    sendMessage(question)   // ← removed context
   }
+}
 
-  // ── Send message ────────────────────────────────────────────────────────────
-  const handleSend = (text) => {
-    const question = (text || input).trim()
-    if (!question) return
-
-    lastQuestion.current = question
-    setInput('')
-    setShowSuggestions(false)
-
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now(), sender: 'patient', message: question, time: getNow() },
-    ])
-
-    if (THINKING_TABS.includes(tabKey)) {
-      setThinkingSteps(AGENT_STEPS[tabKey] || AGENT_STEPS.general)
-      setIsThinking(true)
-    } else {
-      setTimeout(() => addAgentResponse(question), 700)
-    }
-  }
+// Called when AgentThinking animation finishes
+const handleThinkingComplete = () => {
+  setIsThinking(false)
+  sendMessage(lastQuestion.current)  // ← removed context, fixed undefined variable
+}
 
   // ── Sign out ────────────────────────────────────────────────────────────────
   const handleLogout = () => {
@@ -473,7 +387,7 @@ export default function ChatScreen({ onNavigate }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Styles — identical structure to original
+// Styles — unchanged from original
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -485,19 +399,24 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 28, fontWeight: '700', color: '#1A1A1A', letterSpacing: -0.5, flex: 1 },
   logoutBtn:   { padding: 8 },
 
-  tabsScroll:   { maxHeight: 48, marginBottom: 4 },
-  tabsContent:  { paddingHorizontal: 16, alignItems: 'center', gap: 8 },
-  tab:          { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F0F0F0' },
-  tabActive:    { backgroundColor: '#F4A69E' },
-  tabText:      { fontSize: 13, color: '#888888', fontWeight: '500' },
-  tabTextActive:{ color: '#FFFFFF', fontWeight: '600' },
+  alertBanner:   { backgroundColor: '#FFE4E4', padding: 10, borderBottomWidth: 1, borderBottomColor: '#FFBBBB' },
+  alertText:     { color: '#CC0000', fontSize: 13, textAlign: 'center' },
+  bookingBanner: { backgroundColor: '#E4F0FF', padding: 10, borderBottomWidth: 1, borderBottomColor: '#BBCCFF' },
+  bookingText:   { color: '#0044CC', fontSize: 13, textAlign: 'center' },
+
+  tabsScroll:    { maxHeight: 48, marginBottom: 4 },
+  tabsContent:   { paddingHorizontal: 16, alignItems: 'center', gap: 8 },
+  tab:           { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F0F0F0' },
+  tabActive:     { backgroundColor: '#F4A69E' },
+  tabText:       { fontSize: 13, color: '#888888', fontWeight: '500' },
+  tabTextActive: { color: '#FFFFFF', fontWeight: '600' },
 
   messages:        { flex: 1, paddingHorizontal: 16 },
   messagesContent: { paddingTop: 16, paddingBottom: 16 },
 
-  suggestion:        { backgroundColor: '#F0F0F0', borderRadius: 12, padding: 14, marginBottom: 10 },
-  suggestionText:    { fontSize: 14, color: '#1A1A1A', textAlign: 'center' },
-  suggestionLoading: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14 },
+  suggestion:            { backgroundColor: '#F0F0F0', borderRadius: 12, padding: 14, marginBottom: 10 },
+  suggestionText:        { fontSize: 14, color: '#1A1A1A', textAlign: 'center' },
+  suggestionLoading:     { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14 },
   suggestionLoadingText: { fontSize: 13, color: '#888' },
 
   inputArea:   { backgroundColor: '#E8F5E9', paddingHorizontal: 16, paddingTop: 12, flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
@@ -509,8 +428,8 @@ const styles = StyleSheet.create({
   sendBtn:     { marginLeft: 'auto', width: 32, height: 32, borderRadius: 16, backgroundColor: '#CCCCCC', alignItems: 'center', justifyContent: 'center' },
   sendBtnActive:{ backgroundColor: '#5B9E8F' },
 
-  bottomTabBar:       { flexDirection: 'row', backgroundColor: '#D8EFE3', paddingVertical: 10, paddingBottom: Platform.OS === 'ios' ? 24 : 12, justifyContent: 'space-around' },
-  bottomTabItem:      { alignItems: 'center', gap: 6 },
-  bottomTabLabel:     { fontSize: 12, color: '#555', fontWeight: '500' },
+  bottomTabBar:        { flexDirection: 'row', backgroundColor: '#D8EFE3', paddingVertical: 10, paddingBottom: Platform.OS === 'ios' ? 24 : 12, justifyContent: 'space-around' },
+  bottomTabItem:       { alignItems: 'center', gap: 6 },
+  bottomTabLabel:      { fontSize: 12, color: '#555', fontWeight: '500' },
   bottomTabLabelActive:{ color: '#5BAD8F', fontWeight: '700' },
 })

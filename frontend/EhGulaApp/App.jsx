@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, createContext, useContext } from 'react'
 import { View, ActivityIndicator } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { supabase } from './src/supabase'
@@ -11,22 +11,60 @@ import RemindersScreen from './src/screens/RemindersScreen'
 import SummariesScreen from './src/screens/SummariesScreen'
 import LogsScreen      from './src/screens/LogsScreen'
 
+// ─────────────────────────────────────────────
+// Auth Context — exported so any hook can call
+// useAuth() to get user + patientId
+// ─────────────────────────────────────────────
+export const AuthContext = createContext(null)
+export const useAuth    = () => useContext(AuthContext)
+
+// ─────────────────────────────────────────────
+// Fetches patient UUID once on login
+// patients.user_id = auth.user.id (confirmed schema)
+// ─────────────────────────────────────────────
+async function fetchPatientId(userId) {
+  try {
+    const { data, error } = await supabase
+      .from('patients')
+      .select('id')
+      .eq('user_id', userId)
+      .single()
+    if (error) throw error
+    return data.id
+  } catch (err) {
+    console.error('[App] fetchPatientId failed:', err.message)
+    return null
+  }
+}
+
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState('login')
-  const [authChecked, setAuthChecked]     = useState(false)
+  const [authChecked,   setAuthChecked]   = useState(false)
+  const [user,          setUser]          = useState(null)
+  const [patientId,     setPatientId]     = useState(null)
 
   useEffect(() => {
     // Check existing session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setCurrentScreen('landing')
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user)
+        const pid = await fetchPatientId(session.user.id)
+        setPatientId(pid)
+        setCurrentScreen('landing')
+      }
       setAuthChecked(true)
     })
 
-    // FIX: Handle both sign-in AND sign-out events
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
+    // Handle sign-in and sign-out events
+    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        setUser(session.user)
+        const pid = await fetchPatientId(session.user.id)
+        setPatientId(pid)
         setCurrentScreen('landing')
       } else {
+        setUser(null)
+        setPatientId(null)
         setCurrentScreen('login')
       }
     })
@@ -34,7 +72,7 @@ export default function App() {
     return () => listener?.subscription?.unsubscribe()
   }, [])
 
-  // FIX: Show a spinner instead of a blank screen while checking auth
+  // Show spinner while checking auth
   if (!authChecked) {
     return (
       <SafeAreaProvider>
@@ -59,8 +97,10 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      {renderScreen()}
-    </SafeAreaProvider>
+    <AuthContext.Provider value={{ user, patientId }}>
+      <SafeAreaProvider>
+        {renderScreen()}
+      </SafeAreaProvider>
+    </AuthContext.Provider>
   )
 }
