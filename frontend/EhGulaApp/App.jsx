@@ -9,6 +9,7 @@ import LandingScreen   from './src/screens/LandingScreen'
 import ChatScreen      from './src/screens/ChatScreen'
 import RemindersScreen from './src/screens/RemindersScreen'
 import SummariesScreen from './src/screens/SummariesScreen'
+import LogsScreen      from './src/screens/LogsScreen'
 
 // ─────────────────────────────────────────────
 // Auth Context — exported so any hook can call
@@ -87,10 +88,11 @@ export default function App() {
       case 'login':     return <LoginScreen     onNavigate={setCurrentScreen} />
       case 'register':  return <RegisterScreen  onNavigate={setCurrentScreen} />
       case 'landing':   return <LandingScreen   onNavigate={setCurrentScreen} />
-      case 'chat':      return <ChatScreen      onNavigate={setCurrentScreen} />
-      case 'summaries': return <SummariesScreen onNavigate={setCurrentScreen} />
-      case 'reminders': return <RemindersScreen onNavigate={setCurrentScreen} />
-      default:          return <LoginScreen     onNavigate={setCurrentScreen} />
+      case 'chat':      return <ChatScreen       onNavigate={setCurrentScreen} />
+      case 'summaries': return <SummariesScreen  onNavigate={setCurrentScreen} />
+      case 'reminders': return <RemindersScreen  onNavigate={setCurrentScreen} />
+      case 'logs':      return <LogsScreen       onNavigate={setCurrentScreen} />
+      default:          return <LoginScreen      onNavigate={setCurrentScreen} />
     }
   }
 

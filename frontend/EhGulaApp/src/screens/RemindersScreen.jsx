@@ -26,6 +26,14 @@ const PRIORITY_COLORS = {
   low:    '#43A047',
 }
 
+const CATEGORY_COLORS = {
+  'Appointments': { bg: '#E3F2FD', text: '#1976D2', icon: '#1976D2' },
+  'Medications':  { bg: '#F3E5F5', text: '#7B1FA2', icon: '#7B1FA2' },
+  'General':      { bg: '#F5F5F5', text: '#424242', icon: '#424242' },
+  'Meals':        { bg: '#FFF3E0', text: '#E65100', icon: '#E65100' },
+  'Exercise':     { bg: '#E8F5E9', text: '#2E7D32', icon: '#2E7D32' },
+}
+
 const ACTION_ICONS = {
   remind:       'bell-ring-outline',
   held:         'pause-circle-outline',
@@ -58,19 +66,16 @@ const CategoryPill = ({ label, active, count, onPress }) => (
 )
 
 const ReminderCard = ({ item, onComplete, onSnooze, onBook }) => {
-  const borderColor = PRIORITY_COLORS[item.priority]
   const iconName    = ACTION_ICONS[item.action] || 'bell-outline'
   const maxSnoozed  = item.snoozeCount >= MAX_SNOOZES
+  const categoryColor = CATEGORY_COLORS[item.category] || CATEGORY_COLORS['General']
 
   return (
-    <View style={[styles.reminderCard, { borderLeftColor: borderColor }]}>
+    <View style={styles.reminderCard}>
       <View style={styles.reminderHeader}>
         <View style={styles.reminderHeaderLeft}>
-          <MaterialCommunityIcons name={iconName} size={15} color={borderColor} style={{ marginRight: 5 }} />
+          <MaterialCommunityIcons name={iconName} size={15} color={categoryColor.icon} style={{ marginRight: 5 }} />
           <Text style={styles.reminderTime}>{item.time}</Text>
-        </View>
-        <View style={[styles.tagBadge, { backgroundColor: item.tagColor }]}>
-          <Text style={[styles.tagText, { color: item.tagTextColor }]}>{item.category}</Text>
         </View>
       </View>
 
@@ -378,10 +383,10 @@ export default function RemindersScreen({ onNavigate }) {
 
   const mascotMessages = {
     General:      "Here's everything on your plate today!",
-    Medications:  'Your meds are waiting for you 💊',
+    Medications:  'Your meds are waiting for you',
     Appointments: 'Tick tock, tick tock…',
-    Meals:        "Don't forget to eat! 🍱",
-    Exercise:     'Time to get moving! 🚶',
+    Meals:        "Don't forget to eat!",
+    Exercise:     'Time to get moving!',
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -413,92 +418,90 @@ export default function RemindersScreen({ onNavigate }) {
   // Main render
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor="#5BAD8F" />}
-      >
-        {/* Title + Add Log */}
-        <View style={styles.titleRow}>
-          <Text style={styles.pageTitle}>Reminders</Text>
-          <TouchableOpacity style={styles.addLogBtn} onPress={() => setAddLogVisible(true)} activeOpacity={0.8}>
-            <MaterialCommunityIcons name="plus-circle-outline" size={17} color="#5BAD8F" />
-            <Text style={styles.addLogBtnText}>Add Log</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Category pills */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow} contentContainerStyle={styles.pillRowContent}>
-          {CATEGORIES.map((cat) => (
-            <CategoryPill
-              key={cat}
-              label={cat}
-              active={activeCategory === cat}
-              count={countFor(cat)}
-              onPress={() => setActiveCategory(cat)}
-            />
-          ))}
-        </ScrollView>
-
-        {/* Upcoming appointment (Appointments tab) */}
-        {activeCategory === 'Appointments' && confirmedApt && (
-          <>
-            <Text style={styles.sectionLabel}>UPCOMING APPOINTMENT</Text>
-            <UpcomingAppointmentCard appointment={confirmedApt} />
-            <Text style={[styles.sectionLabel, { marginTop: 20 }]}>APPOINTMENT ALERTS</Text>
-          </>
-        )}
-
-        {/* Reminder cards */}
-        {activeReminders.length === 0 ? (
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons name="check-all" size={48} color="#5BAD8F" />
-            <Text style={styles.emptyTitle}>All clear!</Text>
-            <Text style={styles.emptySubtitle}>No active reminders in this category.</Text>
+    <View style={styles.wrapper}>
+      <SafeAreaView style={styles.safe}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor="#5BAD8F" />}
+        >
+          {/* Title + Add Log */}
+          <View style={styles.titleRow}>
+            <Text style={styles.pageTitle}>Reminders</Text>
           </View>
-        ) : (
-          <View style={styles.reminderList}>
-            {activeReminders.map((item) => (
-              <ReminderCard
-                key={item.id}
-                item={item}
-                onComplete={handleComplete}
-                onSnooze={handleSnooze}
-                onBook={handleBook}
+
+          {/* Category pills */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow} contentContainerStyle={styles.pillRowContent}>
+            {CATEGORIES.map((cat) => (
+              <CategoryPill
+                key={cat}
+                label={cat}
+                active={activeCategory === cat}
+                count={countFor(cat)}
+                onPress={() => setActiveCategory(cat)}
               />
             ))}
-          </View>
-        )}
+          </ScrollView>
 
-        {/* Recent user logs */}
-        {userLogs.length > 0 && (
-          <View style={{ marginTop: 24 }}>
-            <Text style={styles.sectionLabel}>YOUR RECENT LOGS</Text>
-            {userLogs.slice(-5).reverse().map((log, i) => (
-              <View key={i} style={styles.userLogRow}>
-                <MaterialCommunityIcons name="pencil-circle-outline" size={16} color="#5BAD8F" />
-                <View style={{ flex: 1, marginLeft: 8 }}>
-                  <Text style={styles.userLogCat}>{log.category}</Text>
-                  <Text style={styles.userLogNote}>{log.note}</Text>
-                  <Text style={styles.userLogTime}>
-                    {new Date(log.timestamp).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
+          {/* Upcoming appointment (Appointments tab) */}
+          {activeCategory === 'Appointments' && confirmedApt && (
+            <>
+              <Text style={styles.sectionLabel}>UPCOMING APPOINTMENT</Text>
+              <UpcomingAppointmentCard appointment={confirmedApt} />
+              <Text style={[styles.sectionLabel, { marginTop: 20 }]}>APPOINTMENT ALERTS</Text>
+            </>
+          )}
+
+          {/* Reminder cards */}
+          {activeReminders.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialCommunityIcons name="check-all" size={48} color="#f7f7f7" />
+              <Text style={styles.emptyTitle}>All clear!</Text>
+              <Text style={styles.emptySubtitle}>No active reminders in this category.</Text>
+            </View>
+          ) : (
+            <View style={styles.reminderList}>
+              {activeReminders.map((item) => (
+                <ReminderCard
+                  key={item.id}
+                  item={item}
+                  onComplete={handleComplete}
+                  onSnooze={handleSnooze}
+                  onBook={handleBook}
+                />
+              ))}
+            </View>
+          )}
+
+          {/* Recent user logs */}
+          {userLogs.length > 0 && (
+            <View style={{ marginTop: 24 }}>
+              <Text style={styles.sectionLabel}>YOUR RECENT LOGS</Text>
+              {userLogs.slice(-5).reverse().map((log, i) => (
+                <View key={i} style={styles.userLogRow}>
+                  <MaterialCommunityIcons name="pencil-circle-outline" size={16} color="#5BAD8F" />
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={styles.userLogCat}>{log.category}</Text>
+                    <Text style={styles.userLogNote}>{log.note}</Text>
+                    <Text style={styles.userLogTime}>
+                      {new Date(log.timestamp).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            ))}
-          </View>
-        )}
+              ))}
+            </View>
+          )}
 
-        {/* Mascot */}
-        <View style={styles.mascotRow}>
-          <View style={styles.speechBubble}>
-            <Text style={styles.speechText}>{mascotMessages[activeCategory]}</Text>
+          {/* Mascot */}
+          <View style={styles.mascotRow}>
+            <View style={styles.speechBubble}>
+              <Text style={styles.speechText}>{mascotMessages[activeCategory]}</Text>
+            </View>
+            <Image source={require('../assets/mascot.png')} style={styles.mascotImage} resizeMode="contain" />
           </View>
-          <Image source={require('../assets/mascot.png')} style={styles.mascotImage} resizeMode="contain" />
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </SafeAreaView>
 
       {/* Tab bar */}
       <View style={styles.tabBar}>
@@ -508,17 +511,21 @@ export default function RemindersScreen({ onNavigate }) {
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} onPress={() => onNavigate('chat')}>
           <MaterialCommunityIcons name="chat-outline" size={24} color="#555555" />
-          <Text style={styles.tabLabel}>Chats</Text>
+          <Text style={styles.tabLabel}>Chat</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem}>
           <MaterialCommunityIcons name="clock-outline" size={24} color="#5BAD8F" />
           <Text style={[styles.tabLabel, styles.tabLabelActive]}>Reminders</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} onPress={() => onNavigate('logs')}>
+          <MaterialCommunityIcons name="notebook-outline" size={24} color="#555555" />
+          <Text style={styles.tabLabel}>Logs</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Add Log modal */}
       <AddLogModal visible={addLogVisible} onClose={() => setAddLogVisible(false)} onSubmit={handleAddLog} />
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -535,6 +542,7 @@ const TEXT_MID   = '#555555'
 const TEXT_LIGHT = '#999999'
 
 const styles = StyleSheet.create({
+  wrapper:       { flex: 1, backgroundColor: '#FFFFFF' },
   safe:          { flex: 1, backgroundColor: PAGE_BG },
   scroll:        { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 },
@@ -558,17 +566,16 @@ const styles = StyleSheet.create({
 
   reminderList: { gap: 12 },
   reminderCard: {
-    backgroundColor: CARD_BG, borderRadius: 16, padding: 14, borderLeftWidth: 4,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3,
+    backgroundColor: CARD_BG, borderRadius: 16, padding: 14,
+    shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 6, shadowOffset: { width: 0, height: 1 }, elevation: 2,
   },
-  reminderHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  reminderHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   reminderHeaderLeft: { flexDirection: 'row', alignItems: 'center' },
   reminderTime:       { fontSize: 12, color: TEXT_LIGHT },
-  reminderTitle:      { fontSize: 15, fontWeight: '700', color: TEXT_DARK, lineHeight: 21, marginBottom: 4 },
+  reminderTitle:      { fontSize: 15, fontWeight: '700', color: TEXT_DARK, lineHeight: 21, marginBottom: 2 },
   reminderDetail:     { fontSize: 13, color: TEXT_MID, lineHeight: 18, marginBottom: 10 },
 
-  tagBadge: { borderRadius: 12, paddingVertical: 3, paddingHorizontal: 10 },
-  tagText:  { fontSize: 11, fontWeight: '600' },
+
 
   slotList:    { marginBottom: 10, gap: 6 },
   slotHeader:  { fontSize: 12, fontWeight: '600', color: TEXT_MID, marginBottom: 4 },
@@ -607,12 +614,12 @@ const styles = StyleSheet.create({
   userLogNote: { fontSize: 13, color: TEXT_DARK, marginTop: 2 },
   userLogTime: { fontSize: 11, color: TEXT_LIGHT, marginTop: 4 },
 
-  mascotRow:    { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'flex-end', marginTop: 36, gap: 10 },
+  mascotRow:    { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'flex-end', marginTop: 10, gap: 5 },
   speechBubble: { backgroundColor: ACCENT, borderRadius: 24, paddingVertical: 12, paddingHorizontal: 20, maxWidth: '60%' },
   speechText:   { color: '#fff', fontSize: 14, fontWeight: '600' },
-  mascotImage:  { width: 64, height: 64 },
+  mascotImage:  { width: 90, height: 90 },
 
-  tabBar:         { flexDirection: 'row', backgroundColor: LIGHT_BG, paddingVertical: 10, paddingBottom: 16, justifyContent: 'space-around' },
+  tabBar:         { flexDirection: 'row', backgroundColor: LIGHT_BG, paddingVertical: 10, paddingBottom: Platform.OS === 'ios' ? 24 : 12, justifyContent: 'space-around' },
   tabItem:        { alignItems: 'center', gap: 4 },
   tabLabel:       { fontSize: 12, color: TEXT_MID, fontWeight: '500' },
   tabLabelActive: { color: ACCENT, fontWeight: '700' },
