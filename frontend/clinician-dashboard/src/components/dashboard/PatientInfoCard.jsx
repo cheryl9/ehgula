@@ -1,7 +1,6 @@
-import { Phone, Mail, AlertCircle, Edit2 } from 'lucide-react'
+import { Phone, AlertCircle, Edit2 } from 'lucide-react'
 import { useState } from 'react'
 import { useClinicianStore } from '../../store/clinicianStore'
-import clsx from 'clsx'
 
 /**
  * PatientInfoCard - Display patient demographics and contact information
@@ -15,26 +14,29 @@ export default function PatientInfoCard() {
     return null
   }
 
-  // Calculate age from DOB (mock)
-  const calculateAge = () => 52
+  const toReadableDate = (value) => {
+    if (!value) return 'N/A'
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return value
+    return parsed.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+  }
 
-  // Mock additional patient data
   const patientInfo = {
     name: selectedPatient.name,
-    dateOfBirth: 'May 15, 1972',
-    age: 52,
-    gender: 'Male',
-    condition: 'Type 2 Diabetes Mellitus',
-    diagnosisDate: 'January 2018',
-    diseaseDuration: '8 years',
+    dateOfBirth: 'N/A',
+    age: selectedPatient.age ?? 'N/A',
+    gender: selectedPatient.gender || 'N/A',
+    condition: selectedPatient.condition || 'N/A',
+    diagnosisDate: toReadableDate(selectedPatient.diagnosis_date),
+    diseaseDuration: selectedPatient.diagnosis_date ? 'From diagnosis date' : 'N/A',
     clinician: 'Dr. Sarah Chen',
     emergencyContact: {
-      name: 'Mary Tan (Spouse)',
-      phone: '+65 9876-5432',
+      name: selectedPatient.emergency_contact || 'N/A',
+      phone: selectedPatient.emergency_contact || 'N/A',
     },
-    preferredLanguage: 'English',
-    lastClinicVisit: 'February 28, 2026',
-    allergies: ['Sulfonamides (rash)'],
+    preferredLanguage: selectedPatient.language_preference || 'N/A',
+    lastClinicVisit: 'N/A',
+    allergies: [],
   }
 
   return (

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AlertCircle, AlertTriangle, Info, X } from 'lucide-react'
 import clsx from 'clsx'
 import { useNavigate } from 'react-router-dom'
+import { useClinicianStore } from '../../store/clinicianStore'
 
 /**
  * AlertBanner - Display clinical alerts and flags for patient
@@ -10,33 +11,79 @@ import { useNavigate } from 'react-router-dom'
 export default function AlertBanner({ alerts = [] }) {
   const navigate = useNavigate()
   const [dismissedAlerts, setDismissedAlerts] = useState(new Set())
+  const selectedPatient = useClinicianStore((state) => state.getSelectedPatient?.())
 
-  // Generate default alerts if none provided
-  const defaultAlerts = [
+  const placeholderAlerts = [
     {
-      id: 'glucose-unstable',
+      id: 'placeholder-glucose-unstable',
       severity: 'danger',
       title: 'Glucose Unstable',
       description: '5 consecutive readings >9 mmol/L detected',
-      action: { label: 'View Glucose', onClick: () => navigate('/glucose') },
+      action: selectedPatient
+        ? { label: 'View Glucose', onClick: () => navigate(`/clinician/patients/${selectedPatient.patient_id}/glucose`) }
+        : null,
     },
     {
-      id: 'adherence-dropped',
+      id: 'placeholder-adherence',
       severity: 'warning',
       title: 'Adherence Declining',
-      description: 'Metformin missed 3 times this week',
-      action: { label: 'View Medication', onClick: () => navigate('/medication') },
+      description: 'Medication adherence trend needs review',
+      action: selectedPatient
+        ? { label: 'View Medication', onClick: () => navigate(`/clinician/patients/${selectedPatient.patient_id}/medication`) }
+        : null,
     },
     {
-      id: 'meal-pattern',
+      id: 'placeholder-meal-skip',
       severity: 'warning',
       title: 'Meal Skip Pattern',
-      description: 'Lunch skipped on Tue/Thu for 3 weeks — fasting risk',
-      action: { label: 'View Nutrition', onClick: () => navigate('/nutrition') },
+      description: 'Irregular meal timing detected across recent logs',
+      action: selectedPatient
+        ? { label: 'View Nutrition', onClick: () => navigate(`/clinician/patients/${selectedPatient.patient_id}/nutrition`) }
+        : null,
     },
   ]
 
-  const displayAlerts = alerts.length > 0 ? alerts : defaultAlerts
+  // Generate default alerts if none provided
+  const defaultAlerts = []
+  if (selectedPatient) {
+    const glucose = Number(selectedPatient.last_glucose ?? 0)
+    const adherence = Number(selectedPatient.adherence_pct ?? 0)
+
+    if (glucose > 8) {
+      defaultAlerts.push({
+        id: 'glucose-unstable',
+        severity: 'danger',
+        title: 'Glucose Unstable',
+        description: `Latest glucose ${glucose.toFixed(1)} mmol/L exceeds target range`,
+        action: { label: 'View Glucose', onClick: () => navigate(`/clinician/patients/${selectedPatient.patient_id}/glucose`) },
+      })
+    }
+
+    if (adherence < 80) {
+      defaultAlerts.push({
+        id: 'adherence-dropped',
+        severity: adherence < 60 ? 'danger' : 'warning',
+        title: 'Medication Adherence Declining',
+        description: `Current adherence is ${Math.round(adherence)}%`,
+        action: { label: 'View Medication', onClick: () => navigate(`/clinician/patients/${selectedPatient.patient_id}/medication`) },
+      })
+    }
+
+    if (defaultAlerts.length === 0) {
+      defaultAlerts.push({
+        id: 'stable',
+        severity: 'info',
+        title: 'No Active Clinical Alerts',
+        description: 'Latest available metrics are within expected range.',
+      })
+    }
+  }
+
+  const displayAlerts = alerts.length > 0
+    ? alerts
+    : defaultAlerts.length > 0
+      ? defaultAlerts
+      : placeholderAlerts
   const visibleAlerts = displayAlerts.filter((alert) => !dismissedAlerts.has(alert.id))
 
   const handleDismiss = (alertId) => {

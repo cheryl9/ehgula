@@ -4,7 +4,7 @@
  * Route: /patients/:id/digests
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar } from 'lucide-react';
 import { usePatient } from '../hooks';
@@ -16,9 +16,38 @@ export default function WeeklyDigestPage() {
   const { id: patientId } = useParams();
   const navigate = useNavigate();
   const { patient, isLoading } = usePatient(patientId);
-  const digests = getWeeklyDigestsByPatientId(patientId || 'P001');
+  const [digests, setDigests] = useState([]);
+  const [isDigestLoading, setIsDigestLoading] = useState(true);
 
-  if (isLoading) {
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadDigests = async () => {
+      setIsDigestLoading(true);
+      try {
+        const data = await getWeeklyDigestsByPatientId(patientId || 'P001');
+        if (isMounted) {
+          setDigests(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        if (isMounted) {
+          setDigests([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsDigestLoading(false);
+        }
+      }
+    };
+
+    loadDigests();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [patientId]);
+
+  if (isLoading || isDigestLoading) {
     return (
       <div className="flex h-full items-center justify-center">
         <LoadingSpinner size="lg" />

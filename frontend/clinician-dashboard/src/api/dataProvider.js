@@ -102,6 +102,8 @@ const mapAppointmentRow = (row) => ({
 const mapWeeklyDigestRow = (row) => ({
   id: row.id,
   patientId: row.patient_id,
+  patientName: row.patients?.name || row.patient_name || null,
+  patientCondition: row.patients?.condition || null,
   weekStart: row.week_start,
   weekEnd: row.week_end,
   avgFastingGlucose: row.avg_fasting_glucose,
@@ -118,6 +120,63 @@ const mapWeeklyDigestRow = (row) => ({
   highlights: row.highlights,
   createdAt: row.created_at,
 })
+
+const toNumber = (value, fallback = 0) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+const deriveDigestRiskScore = (adherence, glucose, mealsSkipped) => {
+  // Directly derived from digest metrics without patient-specific hardcoding.
+  const adherencePenalty = Math.max(0, 100 - toNumber(adherence, 0))
+  const glucosePenalty = Math.max(0, toNumber(glucose, 0) - 6.5) * 12
+  const mealSkipPenalty = Math.max(0, toNumber(mealsSkipped, 0)) * 3
+  return Math.max(0, Math.min(100, Math.round(adherencePenalty + glucosePenalty + mealSkipPenalty)))
+}
+
+const deriveDigestRiskLevel = (riskScore) => {
+  if (riskScore >= 85) return 'CRITICAL'
+  if (riskScore >= 65) return 'HIGH'
+  if (riskScore >= 45) return 'MEDIUM'
+  return 'LOW'
+}
+
+const mapDigestToAtRiskPatient = (digest, rank, latestActionDetailByPatientId = new Map()) => {
+  const adherence = toNumber(digest.medicationAdherencePct ?? digest.adherence ?? digest.adherence_pct, 0)
+  const glucose = toNumber(digest.avgFastingGlucose ?? digest.glucose ?? digest.last_glucose, 0)
+  const mealsSkipped = toNumber(digest.mealsSkipped ?? digest.meals_skipped, 0)
+
+  const concernFromDigest = (digest.highlights?.concern || '').toString().trim()
+  const normalizedConcern = concernFromDigest.toLowerCase()
+  const riskScore = deriveDigestRiskScore(adherence, glucose, mealsSkipped)
+  const riskLevel = deriveDigestRiskLevel(riskScore)
+
+  const primaryConcern = concernFromDigest || 'Needs review'
+
+  let alerts = []
+  if (normalizedConcern && normalizedConcern !== 'no major concerns') {
+    alerts.push(primaryConcern)
+  }
+
+  const latestAction = latestActionDetailByPatientId.get(digest.patientId || digest.patient_id) || null
+
+  const action = latestAction
+
+  return {
+    ...digest,
+    rank,
+    patientId: digest.patientId || digest.patient_id,
+    name: digest.name || digest.patientName || 'Unknown Patient',
+    riskScore,
+    riskLevel,
+    primaryConcern,
+    adherence,
+    glucose,
+    mealsSkipped,
+    alerts,
+    action,
+  }
+}
 
 const mapMealRow = (row) => ({
   id: row.id,
@@ -412,14 +471,52 @@ export const getAtRiskPatients = async () => {
     return mockGetAtRiskPatients()
   }
 
-  // Placeholder real implementation:
+  // Use latest digest per assigned patient and include patient name relation.
   const { data, error } = await supabase
     .from('weekly_health_digests')
-    .select('*')
-    .order('medication_adherence_pct', { ascending: true })
+    .select('*, patients(name,condition)')
+    .order('week_start', { ascending: false })
 
   handleError(error, 'getAtRiskPatients')
-  return data.map(mapWeeklyDigestRow)
+
+  const latestByPatient = []
+  const seenPatientIds = new Set()
+
+  for (const row of data || []) {
+    if (seenPatientIds.has(row.patient_id)) {
+      continue
+    }
+    seenPatientIds.add(row.patient_id)
+    latestByPatient.push(row)
+  }
+
+  const patientIds = latestByPatient.map((row) => row.patient_id)
+  const latestActionDetailByPatientId = new Map()
+
+  if (patientIds.length) {
+    const { data: actionRows, error: actionError } = await supabase
+      .from('agent_actions')
+      .select('patient_id,detail,timestamp')
+      .in('patient_id', patientIds)
+      .order('timestamp', { ascending: false })
+
+    handleError(actionError, 'getAtRiskPatients.agent_actions')
+
+    for (const row of actionRows || []) {
+      if (!latestActionDetailByPatientId.has(row.patient_id)) {
+        latestActionDetailByPatientId.set(row.patient_id, row.detail)
+      }
+    }
+  }
+
+  const mapped = latestByPatient
+    .map((row) => mapDigestToAtRiskPatient(mapWeeklyDigestRow(row), 0, latestActionDetailByPatientId))
+    .sort((a, b) => b.riskScore - a.riskScore)
+
+  return mapped.map((row, idx) => ({
+    ...row,
+    rank: idx + 1,
+  }))
 }
 
 export const getCohortOverview = async () => {

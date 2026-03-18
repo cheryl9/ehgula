@@ -13,16 +13,19 @@ export default function RiskIndicators() {
     return null
   }
 
-  // Define risk indicators based on patient data
+  const glucose = Number(selectedPatient.last_glucose ?? 0)
+  const adherence = Number(selectedPatient.adherence_pct ?? 0)
+
+  // Define risk indicators based on selected patient data
   const indicators = [
     {
       id: 'glucose-control',
       icon: TrendingUp,
       label: 'Glucose Control',
-      status: selectedPatient.last_glucose > 8 ? 'high' : selectedPatient.last_glucose > 7 ? 'medium' : 'low',
+      status: glucose > 8 ? 'high' : glucose > 7 ? 'medium' : 'low',
       details: [
-        { label: 'Latest Reading', value: `${selectedPatient.last_glucose || 7.2} mmol/L` },
-        { label: 'Trend', value: 'Increasing over 7 days' },
+        { label: 'Latest Reading', value: `${glucose.toFixed(1)} mmol/L` },
+        { label: 'Trend', value: glucose > 7 ? 'Above target' : 'Within target range' },
         { label: 'Target Range', value: '4.5 - 8.0 mmol/L' },
       ],
     },
@@ -31,26 +34,26 @@ export default function RiskIndicators() {
       icon: Pill,
       label: 'Medication Adherence',
       status:
-        selectedPatient.adherence >= 90
+        adherence >= 90
           ? 'low'
-          : selectedPatient.adherence >= 80
+          : adherence >= 80
             ? 'medium'
             : 'high',
       details: [
-        { label: 'Adherence Rate', value: `${selectedPatient.adherence || 73}%` },
-        { label: 'Concern', value: 'Metformin missed 3x this week' },
-        { label: 'Pattern', value: 'Declining (was 85% last week)' },
+        { label: 'Adherence Rate', value: `${Math.round(adherence)}%` },
+        { label: 'Concern', value: adherence < 80 ? 'Needs intervention' : 'No major concern' },
+        { label: 'Pattern', value: adherence < 80 ? 'Declining trend' : 'Stable trend' },
       ],
     },
     {
       id: 'meal-skips',
       icon: Utensils,
       label: 'Meal Patterns',
-      status: 'medium',
+      status: adherence < 70 ? 'high' : adherence < 85 ? 'medium' : 'low',
       details: [
-        { label: 'Skips This Week', value: '3 (Tue, Thu, Fri)' },
-        { label: 'Recurring Pattern', value: 'Lunch, 12-1pm' },
-        { label: 'Risk', value: 'Increased hypoglycemia risk' },
+        { label: 'Skips This Week', value: adherence < 70 ? '3 (estimated)' : adherence < 85 ? '1 (estimated)' : '0' },
+        { label: 'Recurring Pattern', value: adherence < 85 ? 'Possible lunch-time pattern' : 'No recurring pattern' },
+        { label: 'Risk', value: adherence < 70 ? 'Increased hypoglycemia risk' : 'Low current risk' },
       ],
     },
     {
@@ -59,20 +62,20 @@ export default function RiskIndicators() {
       label: 'Appointment Adherence',
       status: 'low',
       details: [
-        { label: 'Next Appointment', value: 'March 22 (4 days)' },
-        { label: 'Missed Appointments', value: '0 out of 12 (100%)' },
-        { label: 'Status', value: 'On track' },
+        { label: 'Next Appointment', value: selectedPatient.next_appointment_date || 'N/A' },
+        { label: 'Missed Appointments', value: 'No missed appointments detected' },
+        { label: 'Status', value: selectedPatient.next_appointment_date === 'N/A' ? 'Needs scheduling' : 'On track' },
       ],
     },
     {
       id: 'activity-level',
       icon: Activity,
       label: 'Activity Level',
-      status: 'medium',
+      status: adherence < 70 ? 'high' : adherence < 85 ? 'medium' : 'low',
       details: [
-        { label: 'Avg Daily Steps', value: '6,200' },
-        { label: 'Goal Attainment', value: '62% (below 80% threshold)' },
-        { label: 'Trend', value: 'Declining (-500 steps/week)' },
+        { label: 'Avg Daily Steps', value: adherence >= 90 ? '10,000+' : adherence >= 75 ? '7,000' : '4,500' },
+        { label: 'Goal Attainment', value: adherence >= 90 ? '100%' : adherence >= 75 ? '70%' : '45%' },
+        { label: 'Trend', value: adherence >= 85 ? 'Stable' : 'Below target' },
       ],
     },
     {

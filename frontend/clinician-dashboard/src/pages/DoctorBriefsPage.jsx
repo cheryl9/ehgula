@@ -4,10 +4,10 @@
  * Route: /briefs
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, FileText, AlertCircle, Search } from 'lucide-react';
-import { getAllBriefs, getLatestBriefByPatientId } from '../api/dataProvider';
+import { getAllBriefs } from '../api/dataProvider';
 import DoctorBriefModal from '../components/brief/DoctorBriefModal';
 
 export default function DoctorBriefsPage() {
@@ -16,8 +16,30 @@ export default function DoctorBriefsPage() {
   const [filterRisk, setFilterRisk] = useState('all');
   const [selectedBrief, setSelectedBrief] = useState(null);
   const [isBriefModalOpen, setIsBriefModalOpen] = useState(false);
+  const [briefs, setBriefs] = useState([]);
 
-  const briefs = getAllBriefs();
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadBriefs = async () => {
+      try {
+        const data = await getAllBriefs();
+        if (isMounted) {
+          setBriefs(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        if (isMounted) {
+          setBriefs([]);
+        }
+      }
+    };
+
+    loadBriefs();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filteredBriefs = useMemo(() => {
     let result = briefs;

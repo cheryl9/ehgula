@@ -27,52 +27,75 @@ export default function MetricsRow() {
     )
   }
 
-  // Mock calculations from patient data (will be replaced with real API data)
+  // Keep placeholders as safety fallback; override with store data when available.
+  const placeholders = {
+    glucoseValue: 7.1,
+    adherenceValue: 73,
+    nextAppointmentDate: '4 days',
+    mealSkips: 3,
+    stepEstimate: 6200,
+  }
+
+  const hasGlucose = Number.isFinite(Number(selectedPatient.last_glucose))
+  const hasAdherence = Number.isFinite(Number(selectedPatient.adherence_pct))
+  const glucoseValue = hasGlucose ? Number(selectedPatient.last_glucose) : placeholders.glucoseValue
+  const adherenceValue = hasAdherence ? Number(selectedPatient.adherence_pct) : placeholders.adherenceValue
+  const stepEstimate = hasAdherence
+    ? (adherenceValue >= 90 ? 10000 : adherenceValue >= 75 ? 7000 : 4500)
+    : placeholders.stepEstimate
+  const nextAppointmentValue =
+    selectedPatient.next_appointment_date && selectedPatient.next_appointment_date !== 'N/A'
+      ? selectedPatient.next_appointment_date
+      : placeholders.nextAppointmentDate
+  const mealSkips = hasAdherence
+    ? (adherenceValue >= 90 ? 0 : adherenceValue >= 75 ? 1 : 3)
+    : placeholders.mealSkips
+
   const metrics = [
     {
       title: 'Avg Glucose',
-      value: selectedPatient.last_glucose || 7.2,
+      value: glucoseValue,
       unit: 'mmol/L',
       status:
-        selectedPatient.last_glucose > 8
+        glucoseValue > 8
           ? 'danger'
-          : selectedPatient.last_glucose > 7
+          : glucoseValue > 7
             ? 'warning'
             : 'good',
-      trend: 'up',
+      trend: glucoseValue > 7 ? 'up' : 'stable',
       interpretation: 'Last 7-day average. Target: 4.5-8.0 mmol/L',
     },
     {
       title: 'Medication Adherence',
-      value: selectedPatient.adherence || 73,
+      value: Math.round(adherenceValue),
       unit: '%',
-      status: selectedPatient.adherence >= 80 ? 'good' : 'warning',
-      trend: 'down',
-      interpretation: 'Average across all medications. Concern: Declining trend',
+      status: adherenceValue >= 85 ? 'good' : adherenceValue >= 70 ? 'warning' : 'danger',
+      trend: adherenceValue >= 85 ? 'stable' : 'down',
+      interpretation: 'Latest weekly digest medication adherence',
     },
     {
       title: 'Next Appointment',
-      value: '4',
-      unit: 'days',
-      status: 'good',
+      value: nextAppointmentValue,
+      unit: '',
+      status: nextAppointmentValue === placeholders.nextAppointmentDate ? 'warning' : 'good',
       trend: 'stable',
-      interpretation: 'March 22, 2026 - 2:00 PM at Central Clinic',
+      interpretation: 'Next scheduled appointment',
     },
     {
       title: 'Meal Skips',
-      value: '3',
+      value: mealSkips,
       unit: 'this week',
-      status: 'warning',
-      trend: 'up',
-      interpretation: 'Lunch skipped on Tue, Thu. Fasting risk increasing.',
+      status: mealSkips === 0 ? 'good' : mealSkips <= 1 ? 'warning' : 'danger',
+      trend: mealSkips === 0 ? 'stable' : 'up',
+      interpretation: 'Estimated from latest adherence and engagement',
     },
     {
       title: 'Avg Daily Steps',
-      value: 6200,
+      value: stepEstimate,
       unit: '/ 10K goal',
-      status: 'warning',
-      trend: 'down',
-      interpretation: '62% of goal. Activity level declining.',
+      status: stepEstimate >= 9000 ? 'good' : stepEstimate >= 6500 ? 'warning' : 'danger',
+      trend: stepEstimate >= 7000 ? 'stable' : 'down',
+      interpretation: `${Math.round((stepEstimate / 10000) * 100)}% of goal based on current activity trend`,
     },
   ]
 

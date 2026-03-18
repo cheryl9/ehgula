@@ -7,7 +7,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, Clock, CheckCircle } from 'lucide-react';
-import { getAtRiskPatients } from '../api/dataProvider';
+import { getAtRiskPatients, USE_MOCK_DATA } from '../api/dataProvider';
 import { useClinicianStore } from '../store/clinicianStore';
 
 export default function TriagePage() {
@@ -58,6 +58,63 @@ export default function TriagePage() {
     [store.patients.list]
   );
 
+  const toNumber = (value, fallback = 0) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const deriveRiskScore = (adherence, glucose, mealsSkipped = 0) => {
+    const adherenceValue = toNumber(adherence, 0);
+    const glucoseValue = toNumber(glucose, 0);
+    const skipsValue = toNumber(mealsSkipped, 0);
+
+    // Direct digest-based penalties: better metrics should naturally score lower.
+    const adherencePenalty = Math.max(0, 100 - adherenceValue);
+    const glucosePenalty = glucoseValue > 6.5 ? (glucoseValue - 6.5) * 12 : 0;
+    const mealSkipPenalty = Math.max(0, skipsValue) * 3;
+
+    return Math.max(0, Math.min(100, Math.round(adherencePenalty + glucosePenalty + mealSkipPenalty)));
+  };
+
+  const derivePrimaryConcern = (patient, adherence, glucose) => {
+    if (patient.primaryConcern) {
+      return patient.primaryConcern;
+    }
+
+    const digestConcern = patient.highlights?.concern;
+    if (digestConcern && digestConcern !== 'No major concerns') {
+      return digestConcern;
+    }
+
+    const skipPattern = patient.skipPattern || patient.skip_pattern;
+    if (adherence < 60) {
+      return 'Low engagement and medication adherence';
+    }
+    if (glucose >= 8) {
+      return 'Elevated fasting glucose trend';
+    }
+    if (Array.isArray(skipPattern) && skipPattern.length > 0) {
+      return `Recurring meal skips: ${skipPattern.join(', ')}`;
+    }
+
+    return 'No major concerns';
+  };
+
+  const deriveAction = (patient, riskLevel) => {
+    if (patient.action) {
+      return patient.action;
+    }
+
+    if (riskLevel === 'CRITICAL') {
+      return 'Schedule urgent follow-up and medication review';
+    }
+    if (riskLevel === 'HIGH') {
+      return 'Arrange early intervention call this week';
+    }
+
+    return 'Continue current care plan and monitor weekly';
+  };
+
   const normalizeRiskLevel = (patient) => {
     const explicitLevel = (patient.riskLevel || patient.risk_level || '').toString().toUpperCase();
     if (explicitLevel) {
@@ -66,8 +123,9 @@ export default function TriagePage() {
 
     const score = patient.riskScore ?? patient.risk_score;
     if (typeof score === 'number') {
-      if (score >= 80) return 'CRITICAL';
-      if (score >= 60) return 'HIGH';
+      if (score >= 75) return 'CRITICAL';
+      if (score >= 45) return 'HIGH';
+      if (score >= 25) return 'MEDIUM';
       return 'LOW';
     }
 
@@ -84,27 +142,45 @@ export default function TriagePage() {
     () =>
       atRiskRaw.map((patient) => {
         const patientId = patient.patientId || patient.patient_id;
-        const riskLevel = normalizeRiskLevel(patient);
         const adherence =
           patient.adherence ?? patient.adherence_pct ?? patient.medicationAdherencePct ?? null;
         const glucose =
           patient.glucose ?? patient.last_glucose ?? patient.avgFastingGlucose ?? null;
+        const mealsSkipped = patient.mealsSkipped ?? patient.meals_skipped ?? 0;
+        const providedRiskScore = patient.riskScore ?? patient.risk_score;
+        const riskScore = Number.isFinite(Number(providedRiskScore))
+          ? Number(providedRiskScore)
+          : deriveRiskScore(adherence, glucose, mealsSkipped);
+        const riskLevel = normalizeRiskLevel({
+          ...patient,
+          riskScore,
+        });
+        const adherenceValue = toNumber(adherence, 0);
+        const glucoseValue = toNumber(glucose, 0);
         return {
           ...patient,
           patientId,
           name: patient.name || patient.patientName || patientNameById.get(patientId) || 'Unknown Patient',
+          riskScore,
           riskLevel,
           adherence,
           glucose,
+          mealsSkipped,
+          primaryConcern: derivePrimaryConcern(patient, adherenceValue, glucoseValue),
+          action: deriveAction(patient, riskLevel),
         };
       }),
     [atRiskRaw, patientNameById]
   );
 
   const urgentPatients = normalizedAtRiskPatients.filter((p) => p.riskLevel === 'CRITICAL');
-  const needsAttentionPatients = normalizedAtRiskPatients.filter((p) => p.riskLevel === 'HIGH');
+  const needsAttentionPatients = normalizedAtRiskPatients.filter((p) => p.riskLevel === 'MEDIUM');
 
   const onTrackPatients = useMemo(() => {
+    if (!USE_MOCK_DATA) {
+      return normalizedAtRiskPatients.filter((p) => p.riskLevel !== 'CRITICAL' && p.riskLevel !== 'HIGH' && p.riskLevel !== 'MEDIUM');
+    }
+
     const blockedIds = new Set([
       ...urgentPatients.map((p) => p.patientId),
       ...needsAttentionPatients.map((p) => p.patientId),
@@ -115,11 +191,13 @@ export default function TriagePage() {
       .map((p) => ({
         patientId: p.patient_id,
         name: p.name,
-        riskScore: p.risk_score,
+        riskScore: Number.isFinite(Number(p.risk_score))
+          ? Number(p.risk_score)
+          : deriveRiskScore(p.adherence_pct, p.last_glucose, p.meals_skipped),
         adherence: p.adherence_pct,
         glucose: p.last_glucose,
       }));
-  }, [store.patients.list, urgentPatients, needsAttentionPatients]);
+  }, [normalizedAtRiskPatients, store.patients.list, urgentPatients, needsAttentionPatients]);
 
   const TriageLane = ({ title, icon: Icon, color, patients, count, bgColor }) => (
     <div className="bg-white rounded-lg border border-slate-200">
@@ -147,7 +225,7 @@ export default function TriagePage() {
                 <div>
                   <h4 className="font-semibold text-slate-900">{patient.name}</h4>
                   <p className="text-xs text-slate-600">
-                    Risk Score: {patient.riskScore || patient.risk_score}
+                    Risk Score: {patient.riskScore ?? patient.risk_score ?? '-'}
                   </p>
                 </div>
               </div>

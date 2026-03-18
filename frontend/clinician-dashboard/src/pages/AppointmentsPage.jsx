@@ -5,7 +5,7 @@ import { LoadingSpinner } from '../components/ui'
 import { NextAppointmentSuggestion } from '../components/appointments'
 import { getLatestBriefByPatientId } from '../api/dataProvider'
 import DoctorBriefModal from '../components/brief/DoctorBriefModal'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function AppointmentsPage() {
   const { id } = useParams()
@@ -14,9 +14,36 @@ export default function AppointmentsPage() {
   const { patient, isLoading } = usePatient(patientId)
   const [selectedBrief, setSelectedBrief] = useState(null)
   const [isBriefModalOpen, setIsBriefModalOpen] = useState(false)
+  const [latestBrief, setLatestBrief] = useState(null)
+  const [isBriefLoading, setIsBriefLoading] = useState(true)
 
-  // Get latest brief for this patient
-  const latestBrief = getLatestBriefByPatientId(patientId || 'P001')
+  useEffect(() => {
+    let isMounted = true
+
+    const loadLatestBrief = async () => {
+      setIsBriefLoading(true)
+      try {
+        const data = await getLatestBriefByPatientId(patientId || 'P001')
+        if (isMounted) {
+          setLatestBrief(data || null)
+        }
+      } catch {
+        if (isMounted) {
+          setLatestBrief(null)
+        }
+      } finally {
+        if (isMounted) {
+          setIsBriefLoading(false)
+        }
+      }
+    }
+
+    loadLatestBrief()
+
+    return () => {
+      isMounted = false
+    }
+  }, [patientId])
 
   const handleViewBrief = () => {
     if (latestBrief) {
@@ -49,7 +76,7 @@ export default function AppointmentsPage() {
       </div>
 
       {/* Doctor Brief Section */}
-      {latestBrief && (
+      {!isBriefLoading && latestBrief && (
         <div className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
           <div className="flex items-start justify-between">
             <div>

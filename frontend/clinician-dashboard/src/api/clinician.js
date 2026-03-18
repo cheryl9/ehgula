@@ -8,6 +8,7 @@ const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA !== 'false'
 const toPatientRow = (patient, profile, lastGlucoseByPatientId, nextApptByPatientId, digestByPatientId) => {
   const digest = digestByPatientId.get(patient.id)
   const adherence = digest?.medication_adherence_pct ?? 0
+  const digestGlucose = digest?.avg_fasting_glucose ?? null
   const riskLevel =
     adherence >= 80 ? 'low' :
     adherence >= 60 ? 'medium' :
@@ -17,10 +18,20 @@ const toPatientRow = (patient, profile, lastGlucoseByPatientId, nextApptByPatien
     patient_id: patient.id,
     patient_code: patient.patient_code,
     name: patient.name || profile?.full_name || patient.patient_code,
+    age: patient.age,
+    gender: patient.gender,
+    ethnicity: patient.ethnicity,
     condition: patient.condition,
-    last_glucose: lastGlucoseByPatientId.get(patient.id) ?? null,
+    diagnosis_date: patient.diagnosis_date,
+    emergency_contact: patient.emergency_contact,
+    language_preference: profile?.language_preference || null,
+    // Source of truth for overview cards: latest weekly digest fasting average.
+    last_glucose: digestGlucose ?? lastGlucoseByPatientId.get(patient.id) ?? null,
     adherence_pct: adherence,
     risk_level: riskLevel,
+    meals_skipped: digest?.meals_skipped ?? null,
+    skip_pattern: digest?.skip_pattern ?? null,
+    avg_steps: digest?.avg_steps ?? null,
     next_appointment_date: nextApptByPatientId.get(patient.id) || 'N/A',
   }
 }
@@ -62,7 +73,7 @@ export const getAssignedPatients = async (skip = 0, limit = 20) => {
 
     const { data: patients, error: patientsError } = await supabase
       .from('patients')
-      .select('id,user_id,patient_code,name,condition')
+      .select('id,user_id,patient_code,name,age,gender,ethnicity,condition,diagnosis_date,emergency_contact')
       .in('id', assignedIds)
       .range(skip, skip + limit - 1)
 
@@ -75,10 +86,14 @@ export const getAssignedPatients = async (skip = 0, limit = 20) => {
     const patientIds = patients.map((p) => p.id)
 
     const [profilesRes, glucoseRes, apptRes, digestRes] = await Promise.all([
-      supabase.from('profiles').select('id,full_name').in('id', userIds),
+      supabase.from('profiles').select('id,full_name,language_preference').in('id', userIds),
       supabase.from('glucose_readings').select('patient_id,value_mmol,timestamp').in('patient_id', patientIds).order('timestamp', { ascending: false }),
       supabase.from('appointments').select('patient_id,date,status').in('patient_id', patientIds).eq('status', 'scheduled').order('date', { ascending: true }),
-      supabase.from('weekly_health_digests').select('patient_id,medication_adherence_pct,week_start').in('patient_id', patientIds).order('week_start', { ascending: false }),
+      supabase
+        .from('weekly_health_digests')
+        .select('patient_id,medication_adherence_pct,avg_fasting_glucose,meals_skipped,skip_pattern,avg_steps,week_start')
+        .in('patient_id', patientIds)
+        .order('week_start', { ascending: false }),
     ])
 
     if (profilesRes.error) throw profilesRes.error
