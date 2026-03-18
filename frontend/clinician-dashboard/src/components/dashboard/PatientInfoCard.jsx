@@ -31,7 +31,6 @@ export default function PatientInfoCard() {
     diseaseDuration: selectedPatient.diagnosis_date ? 'From diagnosis date' : 'N/A',
     clinician: 'Dr. Sarah Chen',
     emergencyContact: {
-      name: selectedPatient.emergency_contact || 'N/A',
       phone: selectedPatient.emergency_contact || 'N/A',
     },
     preferredLanguage: selectedPatient.language_preference || 'N/A',
@@ -136,14 +135,7 @@ export default function PatientInfoCard() {
           <div className="flex items-center gap-3">
             <Phone size={16} className="text-slate-400" />
             <div>
-              <p className="text-xs text-slate-600">Name</p>
-              <p className="text-sm font-medium text-slate-900">{patientInfo.emergencyContact.name}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Phone size={16} className="text-slate-400" />
-            <div>
-              <p className="text-xs text-slate-600">Phone</p>
+              <p className="text-xs text-slate-600">Relation - Phone</p>
               <p className="text-sm font-medium text-slate-900">
                 {patientInfo.emergencyContact.phone}
               </p>
