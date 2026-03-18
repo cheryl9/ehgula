@@ -282,6 +282,7 @@ def upsert_patient(patient: dict[str, Any], clinician_id: str) -> str:
             {
                 "user_id": user_id,
                 "patient_code": patient["patient_code"],
+                "name": patient["full_name"],
                 "age": patient["age"],
                 "gender": patient["gender"],
                 "ethnicity": patient["ethnicity"],

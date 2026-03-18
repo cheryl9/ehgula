@@ -16,7 +16,7 @@ const toPatientRow = (patient, profile, lastGlucoseByPatientId, nextApptByPatien
   return {
     patient_id: patient.id,
     patient_code: patient.patient_code,
-    name: profile?.full_name || patient.patient_code,
+    name: patient.name || profile?.full_name || patient.patient_code,
     condition: patient.condition,
     last_glucose: lastGlucoseByPatientId.get(patient.id) ?? null,
     adherence_pct: adherence,
@@ -62,7 +62,7 @@ export const getAssignedPatients = async (skip = 0, limit = 20) => {
 
     const { data: patients, error: patientsError } = await supabase
       .from('patients')
-      .select('id,user_id,patient_code,condition')
+      .select('id,user_id,patient_code,name,condition')
       .in('id', assignedIds)
       .range(skip, skip + limit - 1)
 

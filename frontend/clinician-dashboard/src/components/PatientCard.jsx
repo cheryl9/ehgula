@@ -65,7 +65,6 @@ export default function PatientCard({ patient, isSelected }) {
           {/* Name */}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-slate-900 truncate">{patient.name}</p>
-            <p className="text-xs text-slate-500">{patient.patient_id}</p>
           </div>
         </div>
         {/* Risk Badge */}

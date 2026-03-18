@@ -87,6 +87,7 @@ const getAssignedPatientIdsForCurrentClinician = async () => {
 const mapAppointmentRow = (row) => ({
   id: row.id,
   patientId: row.patient_id,
+  patientName: row.patients?.name || row.patient_name || null,
   date: row.date,
   time: row.time,
   clinic: row.clinic,
@@ -200,7 +201,7 @@ export const getPatientAppointments = async (patientId) => {
 
   const { data, error } = await supabase
     .from('appointments')
-    .select('*')
+    .select('*, patients(name)')
     .eq('patient_id', patientId)
     .order('date', { ascending: true })
 
@@ -220,7 +221,7 @@ export const getAllAppointments = async () => {
 
   const { data, error } = await supabase
     .from('appointments')
-    .select('*')
+    .select('*, patients(name)')
     .in('patient_id', assignedPatientIds)
     .order('date', { ascending: true })
 
