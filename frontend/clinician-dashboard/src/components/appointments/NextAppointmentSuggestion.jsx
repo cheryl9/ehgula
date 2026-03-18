@@ -1,42 +1,77 @@
 import { useState } from 'react'
 import UrgencyBadge from './UrgencyBadge'
 
-// Mock suggestion data - in real app, this would come from AI
-const mockSuggestion = {
-  suggestedDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
-  urgency: 'soon',
-  urgencyScore: 62,
-  factors: [
-    {
-      label: 'Days since last visit',
-      value: '32 days',
-      weight: 'High',
-      detail: 'Last appointment was March 10, recommend follow-up within 4 weeks'
-    },
-    {
-      label: 'Glucose stability',
-      value: 'Moderate',
-      weight: 'Medium',
-      detail: 'Some spikes detected but overall trending stable'
-    },
-    {
-      label: 'Medication adherence',
-      value: '78%',
-      weight: 'High',
-      detail: 'Adherence declining - regular check-in recommended'
-    },
-    {
-      label: 'Meal pattern issues',
-      value: 'Recurring lunch skips',
-      weight: 'Medium',
-      detail: 'May benefit from discussion about meal timing strategies'
-    }
-  ],
-  reason: 'Routine follow-up with focus on medication adherence and meal patterns'
-}
-
-export default function NextAppointmentSuggestion({ patientId }) {
+export default function NextAppointmentSuggestion({ patientId, appointments, patient }) {
   const [bookingRequest, setBookingRequest] = useState(false)
+
+  const rows = Array.isArray(appointments)
+    ? appointments
+    : (Array.isArray(appointments?.appointments) ? appointments.appointments : [])
+
+  const now = new Date()
+  const toDate = (dateValue, timeValue) => {
+    if (!dateValue) return null
+    const value = timeValue ? `${dateValue}T${timeValue}` : dateValue
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+
+  const sortedRows = [...rows].sort((a, b) => {
+    const aDate = toDate(a.date, a.time)?.getTime() || 0
+    const bDate = toDate(b.date, b.time)?.getTime() || 0
+    return aDate - bDate
+  })
+
+  const upcoming = sortedRows.find((row) => {
+    const dt = toDate(row.date, row.time)
+    return dt && dt >= now && (row.status || 'scheduled') === 'scheduled'
+  })
+
+  const latestPast = [...sortedRows]
+    .reverse()
+    .find((row) => {
+      const dt = toDate(row.date, row.time)
+      return dt && dt < now
+    })
+
+  const defaultSuggestedDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+  const urgencyScore = Number(upcoming?.urgency_score || 45)
+  const urgency = urgencyScore >= 75 ? 'urgent' : urgencyScore >= 55 ? 'soon' : 'routine'
+
+  const daysSinceLastVisit = latestPast
+    ? Math.max(0, Math.floor((now.getTime() - (toDate(latestPast.date, latestPast.time)?.getTime() || now.getTime())) / (1000 * 60 * 60 * 24)))
+    : null
+
+  const suggestion = {
+    suggestedDate: upcoming ? toDate(upcoming.date, upcoming.time) || defaultSuggestedDate : defaultSuggestedDate,
+    urgency,
+    urgencyScore,
+    factors: [
+      {
+        label: 'Days since last visit',
+        value: daysSinceLastVisit === null ? 'No prior visits' : `${daysSinceLastVisit} days`,
+        weight: daysSinceLastVisit !== null && daysSinceLastVisit > 28 ? 'High' : 'Medium',
+        detail: latestPast
+          ? `Last appointment was ${latestPast.date}`
+          : 'No completed or historical appointments found',
+      },
+      {
+        label: 'Current risk level',
+        value: (patient?.risk_level || 'Unknown').toString().toUpperCase(),
+        weight: (patient?.risk_level || '').toLowerCase() === 'high' ? 'High' : 'Medium',
+        detail: 'Derived from patient overview risk stratification',
+      },
+      {
+        label: 'Upcoming scheduled visits',
+        value: String(sortedRows.filter((row) => (row.status || 'scheduled') === 'scheduled').length),
+        weight: sortedRows.length > 0 ? 'Medium' : 'High',
+        detail: upcoming ? `Nearest scheduled visit: ${upcoming.date}` : 'No scheduled appointment currently found',
+      },
+    ],
+    reason: upcoming
+      ? (upcoming.booking_reason || 'Scheduled follow-up based on current patient status')
+      : 'No upcoming appointment found, recommend scheduling routine follow-up',
+  }
 
   const formatDate = (date) => {
     return date.toLocaleDateString('en-US', {
@@ -49,7 +84,7 @@ export default function NextAppointmentSuggestion({ patientId }) {
 
   const handleBookAppointment = () => {
     // In real app, this would call API to create appointment
-    alert(`Appointment booked for ${formatDate(mockSuggestion.suggestedDate)}`)
+    alert(`Appointment booked for ${formatDate(suggestion.suggestedDate)}`)
     setBookingRequest(false)
   }
 
@@ -58,26 +93,26 @@ export default function NextAppointmentSuggestion({ patientId }) {
       <div className="flex items-start justify-between mb-6">
         <div>
           <h3 className="text-lg font-bold text-slate-900">Recommended Next Appointment</h3>
-          <p className="text-sm text-slate-600 mt-1">AI-recommended scheduling based on patient metrics</p>
+          <p className="text-sm text-slate-600 mt-1">Data-driven scheduling based on this patient's appointment records</p>
         </div>
-        <UrgencyBadge level={mockSuggestion.urgency} score={mockSuggestion.urgencyScore} />
+        <UrgencyBadge level={suggestion.urgency} score={suggestion.urgencyScore} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div>
           <div className="text-sm font-medium text-slate-600 mb-1">Suggested Date</div>
           <div className="text-2xl font-bold text-success-green-700">
-            {formatDate(mockSuggestion.suggestedDate)}
+            {formatDate(suggestion.suggestedDate)}
           </div>
           <div className="text-sm text-slate-600 mt-2">
-            ({Math.ceil((mockSuggestion.suggestedDate - new Date()) / (1000 * 60 * 60 * 24))} days from now)
+            ({Math.ceil((suggestion.suggestedDate - new Date()) / (1000 * 60 * 60 * 24))} days from now)
           </div>
         </div>
 
         <div>
           <div className="text-sm font-medium text-slate-600 mb-1">Recommended Reason</div>
           <div className="text-lg font-semibold text-slate-900">
-            {mockSuggestion.reason}
+            {suggestion.reason}
           </div>
         </div>
       </div>
@@ -86,7 +121,7 @@ export default function NextAppointmentSuggestion({ patientId }) {
       <div className="mb-6">
         <h4 className="font-semibold text-slate-900 mb-3">Contributing Factors</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {mockSuggestion.factors.map((factor, idx) => (
+          {suggestion.factors.map((factor, idx) => (
             <div key={idx} className="bg-white p-3 rounded-lg border border-slate-200 hover:border-success-green-300 transition-colors">
               <div className="flex items-start justify-between mb-1">
                 <span className="font-medium text-slate-900">{factor.label}</span>
@@ -128,13 +163,13 @@ export default function NextAppointmentSuggestion({ patientId }) {
             <h3 className="text-xl font-bold text-slate-900 mb-4">Confirm Appointment Booking</h3>
             <div className="space-y-3 mb-6 text-sm">
               <p className="text-slate-700">
-                <strong>Date:</strong> {formatDate(mockSuggestion.suggestedDate)}
+                <strong>Date:</strong> {formatDate(suggestion.suggestedDate)}
               </p>
               <p className="text-slate-700">
-                <strong>Reason:</strong> {mockSuggestion.reason}
+                <strong>Reason:</strong> {suggestion.reason}
               </p>
               <p className="text-slate-700">
-                <strong>Urgency:</strong> Follow-up (non-urgent)
+                <strong>Urgency:</strong> {suggestion.urgency.toUpperCase()}
               </p>
             </div>
             <div className="flex gap-3">

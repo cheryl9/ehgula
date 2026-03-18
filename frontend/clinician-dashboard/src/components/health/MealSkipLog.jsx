@@ -7,11 +7,52 @@ import { MOCK_MEAL_DATA } from '../../api/dataProvider'
  * MealSkipLog - Calendar view showing meal skip patterns
  * Displays: Calendar heatmap with meal skip data, patterns, warnings
  */
-export default function MealSkipLog() {
+export default function MealSkipLog({ mealData }) {
   const [month, setMonth] = useState(new Date())
   const [mealType, setMealType] = useState('all') // all, breakfast, lunch, dinner
 
-  const mealData = MOCK_MEAL_DATA
+  const normalizeMealData = (input) => {
+    if (input && typeof input === 'object' && !Array.isArray(input) && !Array.isArray(input.rows)) {
+      return input
+    }
+
+    const rows = Array.isArray(input)
+      ? input
+      : (Array.isArray(input?.rows) ? input.rows : [])
+
+    if (!rows.length) {
+      return MOCK_MEAL_DATA
+    }
+
+    const byDate = {}
+    for (const row of rows) {
+      const dateKey = row.date
+      if (!dateKey) continue
+
+      if (!byDate[dateKey]) {
+        byDate[dateKey] = {
+          date: new Date(dateKey),
+          breakfast: { skipped: false, calories: null },
+          lunch: { skipped: false, calories: null },
+          dinner: { skipped: false, calories: null },
+        }
+      }
+
+      const mealType = row.meal_type || row.mealType
+      if (!['breakfast', 'lunch', 'dinner'].includes(mealType)) {
+        continue
+      }
+
+      byDate[dateKey][mealType] = {
+        skipped: !!row.skipped,
+        calories: null,
+      }
+    }
+
+    return byDate
+  }
+
+  const normalizedMealData = normalizeMealData(mealData)
 
   // Detect recurring patterns
   const detectPatterns = () => {
@@ -19,7 +60,7 @@ export default function MealSkipLog() {
 
     // Check Tuesday/Thursday lunch pattern
     let tueThuLunchSkips = 0
-    Object.values(mealData).forEach((day) => {
+    Object.values(normalizedMealData).forEach((day) => {
       const dayOfWeek = day.date.getDay()
       if ((dayOfWeek === 2 || dayOfWeek === 4) && day.lunch.skipped) {
         tueThuLunchSkips++
@@ -36,7 +77,7 @@ export default function MealSkipLog() {
     }
 
     // Check total skips
-    const totalSkips = Object.values(mealData).reduce((sum, day) => {
+    const totalSkips = Object.values(normalizedMealData).reduce((sum, day) => {
       return sum + (day.breakfast.skipped ? 1 : 0) + (day.lunch.skipped ? 1 : 0) + (day.dinner.skipped ? 1 : 0)
     }, 0)
     if (totalSkips > 15) {
@@ -62,7 +103,7 @@ export default function MealSkipLog() {
 
   // Get skip summary for a date
   const getSkipCount = (dateKey) => {
-    const day = mealData[dateKey]
+    const day = normalizedMealData[dateKey]
     if (!day) return 0
     return (day.breakfast.skipped ? 1 : 0) + (day.lunch.skipped ? 1 : 0) + (day.dinner.skipped ? 1 : 0)
   }
@@ -86,11 +127,11 @@ export default function MealSkipLog() {
   }
 
   // Stats
-  const totalMeals = Object.values(mealData).reduce((sum, day) => sum + 3, 0) // 3 meals per day
-  const totalSkips = Object.values(mealData).reduce((sum, day) => {
+  const totalMeals = Object.values(normalizedMealData).reduce((sum, day) => sum + 3, 0) // 3 meals per day
+  const totalSkips = Object.values(normalizedMealData).reduce((sum, day) => {
     return sum + (day.breakfast.skipped ? 1 : 0) + (day.lunch.skipped ? 1 : 0) + (day.dinner.skipped ? 1 : 0)
   }, 0)
-  const skipRate = ((totalSkips / totalMeals) * 100).toFixed(1)
+  const skipRate = totalMeals > 0 ? ((totalSkips / totalMeals) * 100).toFixed(1) : '0.0'
 
   return (
     <div className="space-y-6">
@@ -211,7 +252,7 @@ export default function MealSkipLog() {
 
               const date = new Date(month.getFullYear(), month.getMonth(), day)
               const dateKey = date.toISOString().split('T')[0]
-              const dayData = mealData[dateKey]
+              const dayData = normalizedMealData[dateKey]
               const skipCount = getSkipCount(dateKey)
 
               // If no data for this date, show as disabled/grayed out
@@ -274,7 +315,7 @@ export default function MealSkipLog() {
       <div className="rounded-lg border border-slate-200 bg-white p-6">
         <h4 className="text-lg font-semibold text-slate-900 mb-4">Meal Skip Details (Last 7 Days)</h4>
         <div className="space-y-3">
-          {Object.values(mealData)
+          {Object.values(normalizedMealData)
             .slice(-7)
             .reverse()
             .map((day, idx) => {

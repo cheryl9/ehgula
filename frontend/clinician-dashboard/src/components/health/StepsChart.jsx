@@ -1,15 +1,22 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import clsx from 'clsx'
-import { MOCK_STEPS } from '../../api/dataProvider'
 
 /**
  * StepsChart - 7-day steps tracking with goal line
  * Shows: Bar chart with daily steps, goal indicator, weekly summary
  */
-export default function StepsChart() {
+export default function StepsChart({ exerciseData }) {
   const DAILY_GOAL = 10000
-  const stepsData = MOCK_STEPS
+  const stepsData = Array.isArray(exerciseData?.steps) ? exerciseData.steps : []
+
+  if (!stepsData.length) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-slate-600">
+        No exercise data available for this patient.
+      </div>
+    )
+  }
 
   // Calculate weekly stats
   const totalSteps = stepsData.reduce((sum, day) => sum + day.steps, 0)
@@ -17,10 +24,15 @@ export default function StepsChart() {
   const maxSteps = Math.max(...stepsData.map((d) => d.steps))
   const minSteps = Math.min(...stepsData.map((d) => d.steps))
   const daysAboveGoal = stepsData.filter((d) => d.steps >= DAILY_GOAL).length
-  const goalAchievement = ((totalSteps / (DAILY_GOAL * 7)) * 100).toFixed(0)
+  const goalAchievement = ((totalSteps / (DAILY_GOAL * stepsData.length)) * 100).toFixed(0)
 
-  // Get trend for last 2 weeks (simulated)
-  const trend = Math.random() > 0.5 ? 'up' : 'down'
+  // Compare first and second half of current window for a deterministic trend.
+  const midpoint = Math.max(1, Math.floor(stepsData.length / 2))
+  const firstHalf = stepsData.slice(0, midpoint)
+  const secondHalf = stepsData.slice(midpoint)
+  const avgFirst = firstHalf.reduce((sum, day) => sum + day.steps, 0) / Math.max(1, firstHalf.length)
+  const avgSecond = secondHalf.reduce((sum, day) => sum + day.steps, 0) / Math.max(1, secondHalf.length)
+  const trend = avgSecond >= avgFirst ? 'up' : 'down'
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload }) => {
@@ -66,7 +78,7 @@ export default function StepsChart() {
           <p className={clsx('text-2xl font-bold', goalAchievement >= 100 ? 'text-success-green-600' : 'text-warning-orange-600')}>
             {goalAchievement}%
           </p>
-          <p className="text-xs text-slate-600 mt-1">{daysAboveGoal}/7 days</p>
+          <p className="text-xs text-slate-600 mt-1">{daysAboveGoal}/{stepsData.length} days</p>
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-white p-4">

@@ -321,7 +321,7 @@ export default function TriagePage() {
 
           <div className="mt-8 bg-info-blue-50 border border-info-blue-200 rounded-lg p-6">
             <p className="text-sm text-info-blue-900">
-              <strong>How to use this board:</strong> Drag patients between lanes as their status changes.
+              <strong>How to use this board: </strong>
               Click any patient card to view full details and generate a brief before appointment.
             </p>
           </div>

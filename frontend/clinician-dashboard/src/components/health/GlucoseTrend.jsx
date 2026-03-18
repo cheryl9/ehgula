@@ -1,54 +1,70 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Area, AreaChart } from 'recharts'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import clsx from 'clsx'
 
 /**
  * GlucoseTrend - Multi-day glucose trend chart with target zone
  * Shows: Fasting vs Post-meal readings, target range, trend
  */
-export default function GlucoseTrend({ patientId = null }) {
+export default function GlucoseTrend({ glucoseData }) {
   const [timeRange, setTimeRange] = useState('7') // '7', '14', '30'
 
-  // Mock glucose data for 30 days
-  const generateGlucoseData = (days) => {
-    const data = []
-    const today = new Date()
-
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - i)
-      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-
-      // Morning fasting readings (7-8 AM)
-      data.push({
-        date: dateStr,
-        time: '7:30 AM',
-        type: 'Fasting',
-        value: 6.5 + Math.random() * 2.5, // 6.5-9.0
-        readings: [
-          { time: '7:30 AM', value: 6.5 + Math.random() * 2.5, type: 'Fasting' },
-          { time: '9:00 AM', value: 7.2 + Math.random() * 2.5, type: 'Post-meal' },
-          { time: '1:00 PM', value: 8.1 + Math.random() * 2.0, type: 'Post-meal' },
-          { time: '6:30 PM', value: 7.0 + Math.random() * 2.5, type: 'Post-meal' },
-        ],
-      })
+  const chartData = useMemo(() => {
+    const rows = Array.isArray(glucoseData?.readings) ? glucoseData.readings : []
+    if (!rows.length) {
+      return []
     }
 
-    return data
-  }
+    const days = Number(timeRange)
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - (days - 1))
+    cutoff.setHours(0, 0, 0, 0)
 
-  const glucoseData = generateGlucoseData(parseInt(timeRange))
+    const dayBuckets = new Map()
+    for (const row of rows) {
+      const tsValue = row.timestamp || row.time || row.date
+      if (!tsValue) continue
+      const ts = new Date(tsValue)
+      if (Number.isNaN(ts.getTime()) || ts < cutoff) continue
+
+      const key = ts.toISOString().slice(0, 10)
+      if (!dayBuckets.has(key)) {
+        dayBuckets.set(key, [])
+      }
+
+      const value = Number(row.value_mmol ?? row.value)
+      if (Number.isFinite(value)) {
+        dayBuckets.get(key).push({ ts, value, type: row.reading_type || row.type || 'normal' })
+      }
+    }
+
+    return Array.from(dayBuckets.entries())
+      .sort(([a], [b]) => new Date(a) - new Date(b))
+      .map(([isoDate, dayRows]) => {
+        const avg = dayRows.reduce((sum, item) => sum + item.value, 0) / dayRows.length
+        const dt = new Date(`${isoDate}T00:00:00`)
+        return {
+          date: dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          time: 'Daily avg',
+          type: 'Daily average',
+          value: avg,
+        }
+      })
+  }, [glucoseData, timeRange])
 
   // Calculate statistics
-  const values = glucoseData.map((d) => d.value)
-  const avgGlucose = (values.reduce((a, b) => a + b) / values.length).toFixed(1)
-  const minGlucose = Math.min(...values).toFixed(1)
-  const maxGlucose = Math.max(...values).toFixed(1)
-  const stdDev = (Math.sqrt(values.reduce((sq, n) => sq + Math.pow(n - avgGlucose, 2)) / values.length).toFixed(1))
+  const values = chartData.map((d) => d.value)
+  const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null
+  const avgGlucose = avg !== null ? avg.toFixed(1) : 'N/A'
+  const minGlucose = values.length ? Math.min(...values).toFixed(1) : 'N/A'
+  const maxGlucose = values.length ? Math.max(...values).toFixed(1) : 'N/A'
+  const stdDev = values.length && avg !== null
+    ? Math.sqrt(values.reduce((sq, n) => sq + Math.pow(n - avg, 2), 0) / values.length).toFixed(1)
+    : 'N/A'
 
   // Count readings in range
   const inRange = values.filter((v) => v >= 4.5 && v <= 8.0).length
-  const inRangePercent = ((inRange / values.length) * 100).toFixed(0)
+  const inRangePercent = values.length ? ((inRange / values.length) * 100).toFixed(0) : '0'
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload }) => {
@@ -123,8 +139,13 @@ export default function GlucoseTrend({ patientId = null }) {
       </div>
 
       {/* Chart */}
+      {chartData.length === 0 ? (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-8 text-center text-slate-600">
+          No glucose readings available for this patient in the selected range.
+        </div>
+      ) : (
       <ResponsiveContainer width="100%" height={400}>
-        <LineChart data={glucoseData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+        <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis dataKey="date" stroke="#64748b" style={{ fontSize: '12px' }} />
           <YAxis 
@@ -182,6 +203,7 @@ export default function GlucoseTrend({ patientId = null }) {
           />
         </LineChart>
       </ResponsiveContainer>
+      )}
 
       {/* Legend/Key */}
       <div className="mt-6 pt-6 border-t border-slate-200 grid grid-cols-4 gap-4 text-sm">

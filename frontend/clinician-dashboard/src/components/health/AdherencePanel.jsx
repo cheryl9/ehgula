@@ -5,53 +5,24 @@ import { TrendingUp, TrendingDown } from 'lucide-react'
  * AdherencePanel - Medication adherence visualization
  * Shows: Adherence % per medication with trend
  */
-export default function AdherencePanel() {
-  // Mock medication adherence data
-  const medicationData = [
-    {
-      id: 1,
-      name: 'Metformin',
-      dose: '500mg',
-      frequency: '2x daily',
-      adherence: 73,
-      trend: 'down',
-      lastTaken: '3 hours ago',
-      nextDue: 'Today 6:00 PM',
-    },
-    {
-      id: 2,
-      name: 'Glipizide',
-      dose: '5mg',
-      frequency: '1x daily',
-      adherence: 100,
-      trend: 'stable',
-      lastTaken: 'Today 8:00 AM',
-      nextDue: 'Tomorrow 8:00 AM',
-    },
-    {
-      id: 3,
-      name: 'Rosuvastatin',
-      dose: '10mg',
-      frequency: '1x daily',
-      adherence: 85,
-      trend: 'up',
-      lastTaken: 'Today 8:00 AM',
-      nextDue: 'Tomorrow 8:00 AM',
-    },
-    {
-      id: 4,
-      name: 'Aspirin',
-      dose: '81mg',
-      frequency: '1x daily',
-      adherence: 92,
-      trend: 'stable',
-      lastTaken: 'Yesterday 7:30 AM',
-      nextDue: 'Today 7:30 AM',
-    },
-  ]
+export default function AdherencePanel({ medicationData }) {
+  const medications = Array.isArray(medicationData?.medications)
+    ? medicationData.medications.map((med, idx) => ({
+      id: med.medication_id || med.id || `${med.name || 'med'}-${idx}`,
+      name: med.name || 'Unknown',
+      dose: med.dose || 'N/A',
+      frequency: med.frequency || 'N/A',
+      adherence: Number.isFinite(Number(med.adherence_pct ?? med.adherence))
+        ? Number(med.adherence_pct ?? med.adherence)
+        : 0,
+      trend: (med.trend || 'stable').toLowerCase(),
+      lastTaken: med.last_taken || 'N/A',
+      nextDue: med.next_due || 'N/A',
+    }))
+    : []
 
   // Data for bar chart
-  const chartData = medicationData.map((med) => ({
+  const chartData = medications.map((med) => ({
     name: med.name.substring(0, 8),
     adherence: med.adherence,
     color:
@@ -79,20 +50,32 @@ export default function AdherencePanel() {
     <div className="space-y-6">
       {/* Overview Bar Chart */}
       <div className="rounded-lg border border-slate-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">Medication Adherence</h2>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: '12px' }} />
-            <YAxis domain={[0, 100]} stroke="#64748b" style={{ fontSize: '12px' }} />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="adherence" fill="#8884d8" name="Adherence %">
-              {chartData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <h2 className="text-lg font-semibold text-slate-900 mb-1">Medication Adherence</h2>
+        <p className="text-sm text-slate-600 mb-4">
+          Overall: {Number.isFinite(Number(medicationData?.overall_adherence_pct))
+            ? `${Number(medicationData.overall_adherence_pct)}%`
+            : 'N/A'}
+        </p>
+
+        {chartData.length === 0 ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-8 text-center text-slate-600">
+            No medication adherence data available for this patient.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: '12px' }} />
+              <YAxis domain={[0, 100]} stroke="#64748b" style={{ fontSize: '12px' }} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="adherence" fill="#8884d8" name="Adherence %">
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
 
         {/* Target Reference */}
         <div className="mt-4 flex gap-4 text-sm">
@@ -118,7 +101,9 @@ export default function AdherencePanel() {
         </div>
 
         <div className="divide-y divide-slate-200">
-          {medicationData.map((med) => {
+          {medications.length === 0 ? (
+            <div className="p-6 text-sm text-slate-600">No medication records available.</div>
+          ) : medications.map((med) => {
             const statusColor =
               med.adherence >= 90
                 ? 'bg-success-green-50 border-success-green-200'

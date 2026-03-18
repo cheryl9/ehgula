@@ -11,7 +11,7 @@ export default function AppointmentsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const patientId = id
-  const { patient, isLoading } = usePatient(patientId)
+  const { patient, data, isLoading, error } = usePatient(patientId, 'appointments')
   const [selectedBrief, setSelectedBrief] = useState(null)
   const [isBriefModalOpen, setIsBriefModalOpen] = useState(false)
   const [latestBrief, setLatestBrief] = useState(null)
@@ -73,6 +73,7 @@ export default function AppointmentsPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">Appointments</h1>
         <p className="text-slate-600 mt-2">Patient: {patient?.name}</p>
+        {error && <p className="mt-2 text-sm text-danger-red-700">{error}</p>}
       </div>
 
       {/* Doctor Brief Section */}
@@ -100,7 +101,7 @@ export default function AppointmentsPage() {
 
       {/* Next Appointment Suggestion */}
       <div className="mb-8">
-        <NextAppointmentSuggestion patientId={patientId} />
+        <NextAppointmentSuggestion patientId={patientId} appointments={data?.appointments} patient={patient} />
       </div>
 
       {/* Brief Modal */}

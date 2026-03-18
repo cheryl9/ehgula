@@ -11,6 +11,7 @@ export default function Topbar() {
   const { logout, isAuthenticated } = useAuth()
   const selectedPatient = useClinicianStore((state) => state.getSelectedPatient?.())
   const [showNotifications, setShowNotifications] = useState(false)
+  const selectedRiskLevel = (selectedPatient?.risk_level || '').toString().toUpperCase()
 
   // Hide patient info on /patients page
   const showPatientInfo = selectedPatient && location.pathname !== '/patients'
@@ -55,14 +56,14 @@ export default function Topbar() {
               <span
                 className={clsx(
                   'text-xs font-medium px-2.5 py-1 rounded-full border',
-                  selectedPatient.risk_level?.toLowerCase() === 'high'
+                  selectedRiskLevel.toLowerCase() === 'high'
                     ? 'bg-danger-red-100 text-danger-red-700 border-danger-red-200'
-                    : selectedPatient.risk_level?.toLowerCase() === 'medium'
+                    : selectedRiskLevel.toLowerCase() === 'medium'
                       ? 'bg-warning-orange-100 text-warning-orange-700 border-warning-orange-200'
                       : 'bg-success-green-100 text-success-green-700 border-success-green-200'
                 )}
               >
-                {selectedPatient.risk_level} Risk
+                {selectedRiskLevel || 'N/A'} Risk
               </span>
             </div>
           ) : (

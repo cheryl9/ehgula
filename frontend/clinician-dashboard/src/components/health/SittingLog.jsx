@@ -1,14 +1,21 @@
 import { AlertTriangle, Clock } from 'lucide-react'
 import clsx from 'clsx'
-import { MOCK_SITTING } from '../../api/dataProvider'
 
 /**
  * SittingLog - Sitting episodes timeline
  * Shows: Continuous sitting periods, duration, recommendations
  */
-export default function SittingLog() {
+export default function SittingLog({ exerciseData }) {
   const MAX_CONTINUOUS_SITTING = 60 // minutes
-  const sittingEpisodes = MOCK_SITTING
+  const sittingEpisodes = Array.isArray(exerciseData?.sitting) ? exerciseData.sitting : []
+
+  if (!sittingEpisodes.length) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-slate-600">
+        No sitting episode data available for this patient.
+      </div>
+    )
+  }
 
   // Calculate statistics
   const totalSittingTime = sittingEpisodes.reduce((sum, ep) => sum + ep.duration, 0)

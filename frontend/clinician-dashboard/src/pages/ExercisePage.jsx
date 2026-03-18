@@ -9,7 +9,7 @@ export default function ExercisePage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const patientId = id
-  const { patient, isLoading } = usePatient(patientId)
+  const { patient, data, isLoading, error } = usePatient(patientId, 'exercise')
   const [activeTab, setActiveTab] = useState('steps')
 
   if (isLoading) {
@@ -33,6 +33,7 @@ export default function ExercisePage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">Exercise & Activity</h1>
         <p className="text-slate-600 mt-2">Patient: {patient?.name}</p>
+        {error && <p className="mt-2 text-sm text-danger-red-700">{error}</p>}
       </div>
 
       {/* Tab Navigation */}
@@ -64,9 +65,9 @@ export default function ExercisePage() {
       </div>
 
       {/* Content Sections */}
-      {activeTab === 'steps' && <StepsChart />}
-      {activeTab === 'sitting' && <SittingLog />}
-      {activeTab === 'heart' && <HeartRateSummary />}
+      {activeTab === 'steps' && <StepsChart exerciseData={data?.exercise} />}
+      {activeTab === 'sitting' && <SittingLog exerciseData={data?.exercise} />}
+      {activeTab === 'heart' && <HeartRateSummary exerciseData={data?.exercise} />}
     </div>
   )
 }

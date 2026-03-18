@@ -80,8 +80,15 @@ export const useClinicianStore = create((set, get) => ({
     },
 
     fetchPatientData: async (patientId, dataType = 'all') => {
+      const dataKeys = ['glucose', 'medication', 'meals', 'exercise', 'appointments', 'brief']
+      const requestedKeys = dataType === 'all' ? dataKeys : [dataType]
+      const cleared = requestedKeys.reduce((acc, key) => {
+        acc[key] = null
+        return acc
+      }, {})
+
       set((state) => ({
-        data: { ...state.data, isLoading: true, error: null }
+        data: { ...state.data, ...cleared, isLoading: true, error: null }
       }))
       try {
         const results = {}
@@ -113,7 +120,7 @@ export const useClinicianStore = create((set, get) => ({
         }))
       } catch (error) {
         set((state) => ({
-          data: { ...state.data, error: error.message, isLoading: false }
+          data: { ...state.data, ...cleared, error: error.message, isLoading: false }
         }))
       }
     },

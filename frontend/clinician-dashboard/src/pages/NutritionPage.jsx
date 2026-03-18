@@ -8,7 +8,7 @@ export default function NutritionPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const patientId = id
-  const { patient, isLoading } = usePatient(patientId)
+  const { patient, data, isLoading, error } = usePatient(patientId, 'meals')
 
   if (isLoading) {
     return (
@@ -31,10 +31,11 @@ export default function NutritionPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">Nutrition & Meal Logs</h1>
         <p className="text-slate-600 mt-2">Patient: {patient?.name}</p>
+        {error && <p className="mt-2 text-sm text-danger-red-700">{error}</p>}
       </div>
 
       {/* Meal Skip Analysis */}
-      <MealSkipLog />
+      <MealSkipLog mealData={data?.meals} />
     </div>
   )
 }

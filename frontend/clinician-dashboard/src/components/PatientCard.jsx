@@ -69,7 +69,7 @@ export default function PatientCard({ patient, isSelected }) {
         </div>
         {/* Risk Badge */}
         <span className={clsx('text-xs font-medium px-2 py-1 rounded border flex-shrink-0', riskColor)}>
-          {patient.risk_level || 'N/A'}
+          {(patient.risk_level || 'N/A').toUpperCase()}
         </span>
       </div>
 

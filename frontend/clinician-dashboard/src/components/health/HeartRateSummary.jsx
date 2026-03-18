@@ -1,14 +1,22 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { Heart } from 'lucide-react'
 import clsx from 'clsx'
-import { MOCK_HEART_RATE, HR_ZONES } from '../../api/dataProvider'
+import { HR_ZONES } from '../../api/dataProvider'
 
 /**
  * HeartRateSummary - Heart rate zones and daily summary
  * Shows: HR trend chart, zone distribution, statistics
  */
-export default function HeartRateSummary() {
-  const heartRateData = MOCK_HEART_RATE
+export default function HeartRateSummary({ exerciseData }) {
+  const heartRateData = Array.isArray(exerciseData?.heartRate) ? exerciseData.heartRate : []
+
+  if (!heartRateData.length) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-slate-600">
+        No heart rate data available for this patient.
+      </div>
+    )
+  }
 
   // Calculate statistics
   const hrs = heartRateData.map((d) => d.hr)

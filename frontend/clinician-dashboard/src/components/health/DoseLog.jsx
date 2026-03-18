@@ -6,54 +6,52 @@ import clsx from 'clsx'
  * DoseLog - Dose history log with takenat/missed/held status
  * Shows: Date, Time, Medication, Dose, Status, Notes
  */
-export default function DoseLog() {
+export default function DoseLog({ medicationData }) {
   const [filterDays, setFilterDays] = useState('7')
 
-  // Mock dose log data
-  const generateDoseLog = (days) => {
-    const log = []
-    const medications = [
-      { name: 'Metformin', dose: '500mg' },
-      { name: 'Glipizide', dose: '5mg' },
-      { name: 'Rosuvastatin', dose: '10mg' },
-      { name: 'Aspirin', dose: '81mg' },
-    ]
-
-    const today = new Date()
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - i)
-      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })
-
-      // Morning dose
-      log.push({
-        id: `${i}-morning`,
-        date: dateStr,
-        time: '8:00 AM',
-        medication: 'Metformin',
-        dose: '500mg',
-        status: Math.random() > 0.15 ? 'taken' : Math.random() > 0.5 ? 'missed' : 'held',
-        notes: (Math.random() > 0.8 && 'Patient was in meeting') || '',
-      })
-
-      // Evening dose (selected meds only)
-      if (Math.random() > 0.3) {
-        log.push({
-          id: `${i}-evening`,
-          date: dateStr,
-          time: '6:00 PM',
-          medication: 'Metformin',
-          dose: '500mg',
-          status: Math.random() > 0.1 ? 'taken' : 'missed',
-          notes: Math.random() > 0.9 ? 'Late dose' : '',
-        })
-      }
-    }
-
-    return log.sort((a, b) => new Date(b.date) - new Date(a.date))
+  const normalizeStatus = (value) => {
+    const status = (value || '').toString().toLowerCase()
+    if (status.includes('taken')) return 'taken'
+    if (status.includes('missed')) return 'missed'
+    if (status.includes('held') || status.includes('delay')) return 'held'
+    return 'unknown'
   }
 
-  const doseLog = generateDoseLog(parseInt(filterDays))
+  const rawDoseLogs =
+    (Array.isArray(medicationData?.dose_logs) && medicationData.dose_logs) ||
+    (Array.isArray(medicationData?.dose_history) && medicationData.dose_history) ||
+    []
+
+  const now = new Date()
+  const daysBack = Number(filterDays)
+  const cutoff = new Date(now)
+  cutoff.setDate(now.getDate() - (daysBack - 1))
+  cutoff.setHours(0, 0, 0, 0)
+
+  const doseLog = rawDoseLogs
+    .map((row, idx) => {
+      const ts = row.timestamp || row.taken_at || row.logged_at || row.date || null
+      const parsedDate = ts ? new Date(ts) : null
+      return {
+        id: row.id || `dose-${idx}`,
+        sortTs: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.getTime() : 0,
+        date: parsedDate && !Number.isNaN(parsedDate.getTime())
+          ? parsedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })
+          : (row.date || 'N/A'),
+        time: parsedDate && !Number.isNaN(parsedDate.getTime())
+          ? parsedDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+          : (row.time || row.scheduled_time || 'N/A'),
+        medication: row.medication_name || row.medication || row.name || 'Unknown',
+        dose: row.dose || 'N/A',
+        status: normalizeStatus(row.status || row.action_type),
+        notes: row.notes || row.reason || row.detail || '',
+      }
+    })
+    .filter((row) => {
+      if (!row.sortTs) return true
+      return row.sortTs >= cutoff.getTime()
+    })
+    .sort((a, b) => b.sortTs - a.sortTs)
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -94,15 +92,31 @@ export default function DoseLog() {
     }
   }
 
-  // Summary statistics
-  const summary = {
+  const aggregateSummary = Array.isArray(medicationData?.medications)
+    ? medicationData.medications.reduce(
+      (acc, med) => {
+        acc.total += Number(med.total_doses || 0)
+        acc.taken += Number(med.doses_taken || 0)
+        acc.missed += Number(med.doses_missed || 0)
+        acc.held += Number(med.doses_held_by_agent || 0)
+        return acc
+      },
+      { total: 0, taken: 0, missed: 0, held: 0 }
+    )
+    : { total: 0, taken: 0, missed: 0, held: 0 }
+
+  const tableSummary = {
     total: doseLog.length,
     taken: doseLog.filter((d) => d.status === 'taken').length,
     missed: doseLog.filter((d) => d.status === 'missed').length,
     held: doseLog.filter((d) => d.status === 'held').length,
   }
 
-  const takenPercent = ((summary.taken / summary.total) * 100).toFixed(0)
+  const hasDoseRows = tableSummary.total > 0
+  const summary = hasDoseRows ? tableSummary : aggregateSummary
+  const summarySourceLabel = hasDoseRows ? 'Source: medication_dose_logs' : 'Source: medication aggregate totals'
+
+  const takenPercent = summary.total > 0 ? ((summary.taken / summary.total) * 100).toFixed(0) : 0
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white">
@@ -111,6 +125,7 @@ export default function DoseLog() {
         <div>
           <h3 className="text-lg font-semibold text-slate-900">Dose History</h3>
           <p className="text-sm text-slate-600">{takenPercent}% doses taken • {summary.missed} missed • {summary.held} held by agent</p>
+          <p className="text-xs text-slate-500 mt-1">{summarySourceLabel}</p>
         </div>
 
         {/* Filter Buttons */}
@@ -169,7 +184,7 @@ export default function DoseLog() {
             {doseLog.length === 0 ? (
               <tr>
                 <td colSpan="6" className="px-6 py-8 text-center text-slate-600">
-                  No dose history available
+                  No dose history available from the current data source.
                 </td>
               </tr>
             ) : (

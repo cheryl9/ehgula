@@ -8,7 +8,7 @@ export default function MedicationPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const patientId = id
-  const { patient, isLoading } = usePatient(patientId)
+  const { patient, data, isLoading, error } = usePatient(patientId, 'medication')
 
   if (isLoading) {
     return (
@@ -31,15 +31,16 @@ export default function MedicationPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">Medication Adherence</h1>
         <p className="text-slate-600 mt-2">Patient: {patient?.name}</p>
+        {error && <p className="mt-2 text-sm text-danger-red-700">{error}</p>}
       </div>
 
       {/* Adherence Panel */}
       <div className="mb-6">
-        <AdherencePanel />
+        <AdherencePanel medicationData={data?.medication} />
       </div>
 
       {/* Dose Log */}
-      <DoseLog />
+      <DoseLog medicationData={data?.medication} />
     </div>
   )
 }
