@@ -40,6 +40,9 @@ export default function Patients() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">Patients</h1>
         <p className="text-slate-600 mt-2">Manage {filteredPatients.length} patients</p>
+        {store.patients.error && (
+          <p className="mt-2 text-sm text-danger-red-700">{store.patients.error}</p>
+        )}
       </div>
 
       {/* Search and Filter Controls */}
