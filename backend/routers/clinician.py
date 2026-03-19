@@ -102,6 +102,120 @@ def _invoke_agent(patient_data):
     )
 
 
+@router.get("/patients")
+def get_assigned_patients(skip: int = Query(default=0, ge=0), limit: int = Query(default=20, ge=1, le=200)):
+    assigned_patient_ids = _get_assigned_patient_ids_safe()
+    if not assigned_patient_ids:
+        return {"total": 0, "patients": []}
+
+    patients_rows = (
+        supabase.table("patients")
+        .select("id,user_id,patient_code,name,age,gender,ethnicity,condition,diagnosis_date,emergency_contact")
+        .in_("id", assigned_patient_ids)
+        .execute()
+    ).data or []
+
+    if not patients_rows:
+        return {"total": 0, "patients": []}
+
+    # Apply pagination server-side after assignment filtering.
+    paged_rows = patients_rows[skip: skip + limit]
+    if not paged_rows:
+        return {"total": len(patients_rows), "patients": []}
+
+    user_ids = [row.get("user_id") for row in paged_rows if row.get("user_id")]
+    patient_ids = [row.get("id") for row in paged_rows if row.get("id")]
+
+    profile_rows = (
+        supabase.table("profiles")
+        .select("id,full_name,language_preference")
+        .in_("id", user_ids)
+        .execute()
+    ).data or []
+    profile_by_user_id = {row.get("id"): row for row in profile_rows}
+
+    glucose_rows = (
+        supabase.table("glucose_readings")
+        .select("patient_id,value_mmol,timestamp")
+        .in_("patient_id", patient_ids)
+        .order("timestamp", desc=True)
+        .execute()
+    ).data or []
+
+    last_glucose_by_patient_id = {}
+    for row in glucose_rows:
+        pid = row.get("patient_id")
+        if pid and pid not in last_glucose_by_patient_id:
+            last_glucose_by_patient_id[pid] = row.get("value_mmol")
+
+    appt_rows = (
+        supabase.table("appointments")
+        .select("patient_id,date,status")
+        .in_("patient_id", patient_ids)
+        .eq("status", "scheduled")
+        .order("date")
+        .execute()
+    ).data or []
+
+    next_appt_by_patient_id = {}
+    for row in appt_rows:
+        pid = row.get("patient_id")
+        if pid and pid not in next_appt_by_patient_id:
+            next_appt_by_patient_id[pid] = row.get("date")
+
+    digest_rows = (
+        supabase.table("weekly_health_digests")
+        .select("patient_id,medication_adherence_pct,avg_fasting_glucose,meals_skipped,skip_pattern,avg_steps,week_start")
+        .in_("patient_id", patient_ids)
+        .order("week_start", desc=True)
+        .execute()
+    ).data or []
+
+    digest_by_patient_id = {}
+    for row in digest_rows:
+        pid = row.get("patient_id")
+        if pid and pid not in digest_by_patient_id:
+            digest_by_patient_id[pid] = row
+
+    result_patients = []
+    for patient in paged_rows:
+        pid = patient.get("id")
+        digest = digest_by_patient_id.get(pid) or {}
+        adherence = digest.get("medication_adherence_pct") or 0
+        risk_level = "low" if adherence >= 80 else "medium" if adherence >= 60 else "high"
+        digest_glucose = digest.get("avg_fasting_glucose")
+
+        profile = profile_by_user_id.get(patient.get("user_id")) or {}
+        name = patient.get("name") or profile.get("full_name") or patient.get("patient_code")
+
+        result_patients.append(
+            {
+                "patient_id": pid,
+                "patient_code": patient.get("patient_code"),
+                "name": name,
+                "age": patient.get("age"),
+                "gender": patient.get("gender"),
+                "ethnicity": patient.get("ethnicity"),
+                "condition": patient.get("condition"),
+                "diagnosis_date": patient.get("diagnosis_date"),
+                "emergency_contact": patient.get("emergency_contact"),
+                "language_preference": profile.get("language_preference"),
+                "last_glucose": digest_glucose if digest_glucose is not None else last_glucose_by_patient_id.get(pid),
+                "adherence_pct": adherence,
+                "risk_level": risk_level,
+                "meals_skipped": digest.get("meals_skipped"),
+                "skip_pattern": digest.get("skip_pattern"),
+                "avg_steps": digest.get("avg_steps"),
+                "next_appointment_date": next_appt_by_patient_id.get(pid) or "N/A",
+            }
+        )
+
+    return {
+        "total": len(patients_rows),
+        "patients": result_patients,
+    }
+
+
 @router.get("/patients/{patient_id}")
 def get_patient_detail(patient_id: str):
     _ensure_patient_assigned(patient_id)
