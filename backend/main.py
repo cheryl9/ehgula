@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import agent, chat, meals
+from routers import agent, chat, meals, clinician
 
 app = FastAPI(title="ChronicCompanion API")
 
@@ -15,6 +15,8 @@ app.add_middleware(
 app.include_router(agent.router)
 app.include_router(chat.router)
 app.include_router(meals.router)
+app.include_router(clinician.router)
+app.include_router(clinician.router, prefix="/api")
 
 
 # ── Health check ──────────────────────────────

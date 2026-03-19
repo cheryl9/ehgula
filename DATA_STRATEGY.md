@@ -1,159 +1,158 @@
-# 📊 Data Strategy Plan
+# Data Strategy
 
-## 1. Overview
+## 1. Purpose
 
-Our system is designed to support intelligent diabetes management by integrating multi-modal patient data, including physiological readings, medication adherence, behavioural patterns, and contextual calendar information.
+This project supports diabetes care workflows by combining clinical, behavioral, and physiological data into actionable views for patients and clinicians.
 
-The platform integrates:
-- physiological data (glucose readings)
-- behavioural data (meals, exercise, medication adherence)
-- contextual data (calendar, routines)
-- clinical data (history, clinician input)
+Primary goals:
 
-Using an Agentic AI architecture, the system continuously observes patient context, reasons over multiple signals, and takes proactive actions to improve health outcomes.
+- support proactive interventions from changing trends
+- improve clinician visibility without manual data stitching
+- keep runtime access secure and auditable through backend mediation
 
----
+## 2. Current Architecture (March 2026)
 
-## 2. Alignment with Problem Statement
+### Runtime Data Path
 
-### Proactive Patient Engagement
+For the clinician dashboard in real-data mode:
 
-The system moves beyond passive reminders by:
-- continuously monitoring real-time data streams
-- detecting patterns (e.g., skipped meals, unstable glucose)
-- triggering context-aware actions (e.g., delaying medication, suggesting food or exercise)
+1. Browser app calls backend API.
+2. Backend validates scope (assigned patients, clinician context).
+3. Backend reads/writes Supabase.
+4. Backend returns normalized payloads to frontend.
 
-This is enabled by:
-- structured time-series data (glucose, activity)
-- contextual data (calendar events)
-- agent action logs (for feedback loops)
+The frontend no longer performs direct database fallback queries for clinician runtime data.
 
----
+### Authentication Split
 
-### Hyper Personalisation of Care
+- Clinician dashboard authentication currently uses Supabase auth client-side.
+- Clinical data reads/writes for dashboard views go through backend routes under `/api/clinician/...`.
 
-The system synthesises multiple data sources:
+### Mock Mode
 
-| Data Type | Source |
-|------|--------|
-| Clinical history | NEHR (simulated via Synapxe APIs) |
-| Physiological data | CGM / simulated wearable |
-| Behavioural data | Patient logs |
-| Contextual data | Calendar events |
-| Agent memory | Historical patterns |
+- `VITE_USE_MOCK_DATA` controls mock data usage in frontend APIs.
+- Production-like local testing should use `VITE_USE_MOCK_DATA=false`.
 
-This enables:
-- personalised medication timing
-- culturally relevant dietary recommendations (e.g., hawker food context)
-- adaptive behaviour modelling (e.g., detecting recurring skipped lunches)
+## 3. Data Domains
 
----
+### Patient and Identity
 
-### Bridging Patient–Clinician Gap
+- demographics and profile metadata
+- patient-clinician assignment mapping
 
-The system reduces clinician burden by:
+### Clinical and Treatment
 
-- automatically generating:
-  - weekly health digests
-  - pre-appointment summaries
-- logging all agent decisions in:
-  - `agent_actions`
+- diagnosis context
+- medication plans and dose logs
+- appointment schedule and status
 
-This allows clinicians to:
-- quickly assess patient condition
-- identify risk patterns
-- make informed decisions without manual data aggregation
+### Physiological and Behavior
 
----
+- glucose readings (time series)
+- meal logs, including skipped meal patterns
+- exercise/activity signals (steps, sitting, heart rate)
 
-### Measuring Real-World Impact
+### Derived and Agent Outputs
 
-The system tracks:
+- weekly health digests
+- risk indicators and prioritization fields
+- pre-appointment brief generation support
+- agent action traces used for explainability and review
 
-| Metric | Source |
-|------|--------|
-| Medication adherence | medication_dose_logs |
-| Glucose stability | glucose_readings |
-| Lifestyle behaviour | meal_logs, exercise_logs |
-| Engagement | agent_actions |
-| Outcomes | weekly_health_digests |
+## 4. Storage Model
 
-These metrics support:
-- outcome evaluation
-- longitudinal tracking
-- healthcare efficiency analysis
+Data is stored in Supabase Postgres with relational tables.
 
----
+Core entities:
 
-## 3. Data Collection
+- `profiles`
+- `patients`
+- `clinicians`
+- `clinician_patient_assignments`
 
-### Types of Data
+Operational entities:
 
-#### Personal & Demographic
-- Name, age, gender, ethnicity, language preference
-
-#### Clinical
-- Diagnosis, medications, clinician assignment
-
-#### Physiological
-- Glucose readings (time-series)
-
-#### Behavioural
-- Meals (including skipped meals)
-- Exercise and activity
-- Medication adherence
-
-#### Contextual
-- Calendar events (work schedule)
-
-#### Derived / AI-generated
-- Agent actions
-- Weekly summaries
-- Risk signals (e.g., skipped lunch detection)
-
----
-
-## 4. Data Storage & Architecture
-
-- Built on **PostgreSQL (Supabase)**
-- Structured into relational tables:
-
-Core:
-- `profiles`, `patients`, `clinicians`, `clinician_patient_assignments`
-
-Feature:
 - `glucose_readings`
-- `medication_plans`, `medication_dose_logs`
-- `meal_logs`, `exercise_logs`
-- `calendar_events`
+- `medication_plans`
+- `medication_dose_logs`
+- `meal_logs`
+- `exercise_logs`
+- `appointments`
 - `agent_actions`
 - `weekly_health_digests`
+- `calendar_events`
 
----
+Design principles:
 
-### Design Principles
+- keep canonical source data normalized
+- derive UI-ready summaries at backend API boundaries
+- enforce assignment-aware filtering on clinician-facing endpoints
 
-- **Relational integrity** via foreign keys
-- **Efficient access** via indexing
-- **Separation of concerns**:
-  - Auth → Supabase Auth
-  - Data → public schema
-  - Secure logic → private schema
+## 5. Access and Security Strategy
 
----
+### Access Layers
 
-## 5. Privacy Protection
+- Browser layer: request/response only, no privileged DB access for clinician data paths.
+- API layer: authorization checks, assignment checks, data shaping.
+- DB layer: Supabase policies and table-level controls.
 
-### Core Principles
+### Current Enforcement
 
-- Data minimisation
-- Purpose limitation (healthcare only)
-- No cross-user visibility
+- clinician endpoints identify current clinician context via configured environment value (`CLINICIAN_USER_ID`) and assignment tables
+- patient detail and trend endpoints enforce assignment membership
+- analytics endpoints prefer graceful degradation over hard crash when upstream data is incomplete
 
----
+### Privacy Principles
 
-### Enforcement via RLS
+- least privilege by role
+- minimum necessary data exposure per view
+- explicit patient-to-clinician scope checks
 
-#### Patients:
-```sql
-user_id = auth.uid()
+## 6. API Surface for Clinician Dashboard
+
+Current backend route group:
+
+- `GET /api/clinician/patients`
+- `GET /api/clinician/patients/{patient_id}`
+- `GET /api/clinician/patients/{patient_id}/glucose`
+- `GET /api/clinician/patients/{patient_id}/medication`
+- `GET /api/clinician/patients/{patient_id}/meals`
+- `GET /api/clinician/patients/{patient_id}/exercise`
+- `GET /api/clinician/patients/{patient_id}/appointments`
+- `GET /api/clinician/patients/{patient_id}/brief`
+- `GET /api/clinician/analytics`
+
+Mutation endpoints for appointment workflows are also supported in the same namespace.
+
+## 7. Data Quality and Reliability
+
+### Strategy
+
+- normalize payloads at API boundary for frontend stability
+- return bounded defaults where safe for non-critical aggregate endpoints
+- fail fast for scope/security violations
+
+### Operational Checks
+
+- verify backend health endpoint before frontend testing
+- verify clinician endpoints with known assigned patient IDs
+- monitor 500 errors first (browser CORS messages can be secondary symptoms)
+
+## 8. Environment Requirements
+
+Backend environment variables used in active flows:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_ANON_KEY`
+- `CLINICIAN_USER_ID`
+- `HF_TOKEN`
+
+Refer to `RUNNING.md` for setup and run commands.
+
+## 9. Near-Term Roadmap
+
+- replace env-based clinician context with token-based identity propagation
+- tighten CORS origins and auth policy for non-local environments
+- formalize API contracts (schema validation / OpenAPI review)
+- add endpoint-level integration tests for assignment checks and edge cases
