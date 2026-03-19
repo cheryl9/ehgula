@@ -1,7 +1,9 @@
 from dotenv import load_dotenv
 import os
+from pathlib import Path
 
-load_dotenv()
+ENV_PATH = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=ENV_PATH)
 
 # ── Supabase ──────────────────────────────────
 SUPABASE_URL              = os.getenv("SUPABASE_URL")

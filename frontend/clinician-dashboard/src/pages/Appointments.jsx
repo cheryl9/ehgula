@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useClinicianStore } from '../store/clinicianStore'
 import { getAllAppointments } from '../api/dataProvider'
 import UrgencyBadge from '../components/appointments/UrgencyBadge'
@@ -205,8 +205,8 @@ export default function Appointments() {
               </tr>
             )}
             {sortedAppointments.map((apt) => (
-              <>
-                <tr key={apt.id} className="hover:bg-slate-50 transition-colors">
+              <Fragment key={apt.id}>
+                <tr className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-4 text-sm">
                     <div className="font-medium text-slate-900">{apt.patientName}</div>
                   </td>
@@ -237,7 +237,7 @@ export default function Appointments() {
 
                 {/* Expanded Row */}
                 {expandedId === apt.id && (
-                  <tr key={`${apt.id}-detail`} className="bg-slate-50">
+                  <tr className="bg-slate-50">
                     <td colSpan="7" className="px-4 py-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
@@ -291,7 +291,7 @@ export default function Appointments() {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

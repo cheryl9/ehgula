@@ -531,8 +531,12 @@ export const getDoctorBrief = async (patientId, appointmentId) => {
     })
     return response.data
   } catch (error) {
-    console.error('Failed to get doctor brief:', error)
-    throw error
+    console.warn('Doctor brief unavailable, using fallback summary:', error)
+    return {
+      brief: 'Doctor brief is temporarily unavailable. Please review the latest glucose, medication, and meal trends directly.',
+      alert_level: 'normal',
+      generated_at: new Date().toISOString(),
+    }
   }
 }
 

@@ -4,6 +4,7 @@
 
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA !== 'false'
 
+import apiClient from './client'
 import { supabase } from '../lib/supabase.js'
 
 // Mock imports
@@ -56,6 +57,37 @@ const handleError = (error, context) => {
     console.error(`[${context}]`, error)
     throw error
   }
+}
+
+const apiFirst = async (requestFn, fallbackFn, context) => {
+  try {
+    const response = await requestFn()
+    return response.data
+  } catch (apiError) {
+    console.warn(`[${context}] API call failed, using Supabase fallback`, apiError)
+    if (!fallbackFn) {
+      throw apiError
+    }
+    return fallbackFn()
+  }
+}
+
+const normalizeAppointmentsPayload = (payload) => {
+  const rows = Array.isArray(payload) ? payload : (Array.isArray(payload?.appointments) ? payload.appointments : [])
+  return rows.map((row) => ({
+    id: row.id,
+    patientId: row.patientId || row.patient_id,
+    patientName: row.patientName || row.patient_name || row.patients?.name || null,
+    date: row.date,
+    time: row.time,
+    clinic: row.clinic,
+    clinicianName: row.clinicianName || row.clinician_name,
+    type: row.type,
+    autoBooked: row.autoBooked ?? row.auto_booked,
+    bookingReason: row.bookingReason || row.booking_reason,
+    urgencyScore: row.urgencyScore ?? row.urgency_score,
+    status: row.status,
+  }))
 }
 
 const getAssignedPatientIdsForCurrentClinician = async () => {
@@ -253,19 +285,25 @@ export const getPatientAppointments = async (patientId) => {
     return MOCK_PATIENT_APPOINTMENTS
   }
 
-  const assignedPatientIds = await getAssignedPatientIdsForCurrentClinician()
-  if (!assignedPatientIds.includes(patientId)) {
-    return []
-  }
+  return apiFirst(
+    () => apiClient.get(`/clinician/patients/${patientId}/appointments`),
+    async () => {
+      const assignedPatientIds = await getAssignedPatientIdsForCurrentClinician()
+      if (!assignedPatientIds.includes(patientId)) {
+        return []
+      }
 
-  const { data, error } = await supabase
-    .from('appointments')
-    .select('*, patients(name)')
-    .eq('patient_id', patientId)
-    .order('date', { ascending: true })
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*, patients(name)')
+        .eq('patient_id', patientId)
+        .order('date', { ascending: true })
 
-  handleError(error, 'getPatientAppointments')
-  return data.map(mapAppointmentRow)
+      handleError(error, 'getPatientAppointments')
+      return data.map(mapAppointmentRow)
+    },
+    'getPatientAppointments'
+  ).then(normalizeAppointmentsPayload)
 }
 
 export const getAllAppointments = async () => {
@@ -273,19 +311,25 @@ export const getAllAppointments = async () => {
     return MOCK_ALL_APPOINTMENTS
   }
 
-  const assignedPatientIds = await getAssignedPatientIdsForCurrentClinician()
-  if (!assignedPatientIds.length) {
-    return []
-  }
+  return apiFirst(
+    () => apiClient.get('/clinician/appointments'),
+    async () => {
+      const assignedPatientIds = await getAssignedPatientIdsForCurrentClinician()
+      if (!assignedPatientIds.length) {
+        return []
+      }
 
-  const { data, error } = await supabase
-    .from('appointments')
-    .select('*, patients(name)')
-    .in('patient_id', assignedPatientIds)
-    .order('date', { ascending: true })
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*, patients(name)')
+        .in('patient_id', assignedPatientIds)
+        .order('date', { ascending: true })
 
-  handleError(error, 'getAllAppointments')
-  return data.map(mapAppointmentRow)
+      handleError(error, 'getAllAppointments')
+      return data.map(mapAppointmentRow)
+    },
+    'getAllAppointments'
+  ).then(normalizeAppointmentsPayload)
 }
 
 /**
@@ -299,18 +343,29 @@ export const getStepsData = async (patientId) => {
     return MOCK_STEPS
   }
 
-  const { data, error } = await supabase
-    .from('exercise_logs')
-    .select('*')
-    .eq('patient_id', patientId)
-    .order('date', { ascending: true })
+  const payload = await apiFirst(
+    () => apiClient.get(`/clinician/patients/${patientId}/exercise`, { params: { days: 30 } }),
+    async () => {
+      const { data, error } = await supabase
+        .from('exercise_logs')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('date', { ascending: true })
 
-  handleError(error, 'getStepsData')
+      handleError(error, 'getStepsData')
+      return data
+    },
+    'getStepsData'
+  )
 
-  return data.map(row => ({
+  const rows = Array.isArray(payload)
+    ? payload
+    : (Array.isArray(payload?.steps) ? payload.steps : [])
+
+  return rows.map((row) => ({
     date: row.date,
     steps: row.steps,
-    target: row.step_goal,
+    target: row.target ?? row.goal ?? row.step_goal,
   }))
 }
 
@@ -319,16 +374,34 @@ export const getSittingData = async (patientId) => {
     return MOCK_SITTING
   }
 
-  const { data, error } = await supabase
-    .from('exercise_logs')
-    .select('*')
-    .eq('patient_id', patientId)
-    .order('date', { ascending: true })
+  const payload = await apiFirst(
+    () => apiClient.get(`/clinician/patients/${patientId}/exercise`, { params: { days: 30 } }),
+    async () => {
+      const { data, error } = await supabase
+        .from('exercise_logs')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('date', { ascending: true })
 
-  handleError(error, 'getSittingData')
+      handleError(error, 'getSittingData')
+      return data
+    },
+    'getSittingData'
+  )
 
-  return data.flatMap(row =>
-    (row.sitting_episodes || []).map(ep => ({
+  if (Array.isArray(payload?.sitting)) {
+    return payload.sitting.map((ep) => ({
+      date: ep.date,
+      start: ep.start ?? ep.startTime,
+      end: ep.end ?? ep.endTime,
+      durationMins: ep.durationMins ?? ep.duration,
+      flagged: ep.flagged ?? ep.exceedsLimit,
+    }))
+  }
+
+  const rows = Array.isArray(payload) ? payload : []
+  return rows.flatMap((row) =>
+    (row.sitting_episodes || []).map((ep) => ({
       date: row.date,
       start: ep.start,
       end: ep.end,
@@ -343,16 +416,34 @@ export const getHeartRateData = async (patientId) => {
     return MOCK_HEART_RATE
   }
 
-  const { data, error } = await supabase
-    .from('exercise_logs')
-    .select('*')
-    .eq('patient_id', patientId)
-    .order('date', { ascending: true })
+  const payload = await apiFirst(
+    () => apiClient.get(`/clinician/patients/${patientId}/exercise`, { params: { days: 30 } }),
+    async () => {
+      const { data, error } = await supabase
+        .from('exercise_logs')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('date', { ascending: true })
 
-  handleError(error, 'getHeartRateData')
+      handleError(error, 'getHeartRateData')
+      return data
+    },
+    'getHeartRateData'
+  )
 
-  return data.flatMap(row =>
-    (row.heart_rate || []).map(hr => ({
+  if (Array.isArray(payload?.heartRate) || Array.isArray(payload?.heart_rate)) {
+    const readings = Array.isArray(payload?.heartRate) ? payload.heartRate : payload.heart_rate
+    return readings.map((hr) => ({
+      date: hr.date,
+      time: hr.time,
+      bpm: hr.bpm ?? hr.hr,
+      zone: hr.zone,
+    }))
+  }
+
+  const rows = Array.isArray(payload) ? payload : []
+  return rows.flatMap((row) =>
+    (row.heart_rate || []).map((hr) => ({
       date: row.date,
       time: hr.time,
       bpm: hr.bpm,
@@ -376,14 +467,26 @@ export const getMealData = async (patientId) => {
     return MOCK_MEAL_DATA
   }
 
-  const { data, error } = await supabase
-    .from('meal_logs')
-    .select('*')
-    .eq('patient_id', patientId)
-    .order('date', { ascending: false })
+  const payload = await apiFirst(
+    () => apiClient.get(`/clinician/patients/${patientId}/meals`, { params: { days: 30 } }),
+    async () => {
+      const { data, error } = await supabase
+        .from('meal_logs')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('date', { ascending: false })
 
-  handleError(error, 'getMealData')
-  return data.map(mapMealRow)
+      handleError(error, 'getMealData')
+      return data
+    },
+    'getMealData'
+  )
+
+  const rows = Array.isArray(payload)
+    ? payload
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+
+  return rows.map(mapMealRow)
 }
 
 export const calculateMealAdherence = async (patientId) => {
@@ -432,14 +535,26 @@ export const getWeeklyDigestsByPatientId = async (patientId) => {
     return mockGetWeeklyDigestsByPatientId(patientId)
   }
 
-  const { data, error } = await supabase
-    .from('weekly_health_digests')
-    .select('*')
-    .eq('patient_id', patientId)
-    .order('week_start', { ascending: false })
+  const payload = await apiFirst(
+    () => apiClient.get(`/clinician/patients/${patientId}/weekly-digests`),
+    async () => {
+      const { data, error } = await supabase
+        .from('weekly_health_digests')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('week_start', { ascending: false })
 
-  handleError(error, 'getWeeklyDigestsByPatientId')
-  return data.map(mapWeeklyDigestRow)
+      handleError(error, 'getWeeklyDigestsByPatientId')
+      return data
+    },
+    'getWeeklyDigestsByPatientId'
+  )
+
+  const rows = Array.isArray(payload)
+    ? payload
+    : (Array.isArray(payload?.digests) ? payload.digests : [])
+
+  return rows.map(mapWeeklyDigestRow)
 }
 
 export const getAllWeeklyDigests = async () => {
@@ -447,13 +562,25 @@ export const getAllWeeklyDigests = async () => {
     return mockGetAllWeeklyDigests()
   }
 
-  const { data, error } = await supabase
-    .from('weekly_health_digests')
-    .select('*')
-    .order('week_start', { ascending: false })
+  const payload = await apiFirst(
+    () => apiClient.get('/clinician/weekly-digests'),
+    async () => {
+      const { data, error } = await supabase
+        .from('weekly_health_digests')
+        .select('*')
+        .order('week_start', { ascending: false })
 
-  handleError(error, 'getAllWeeklyDigests')
-  return data.map(mapWeeklyDigestRow)
+      handleError(error, 'getAllWeeklyDigests')
+      return data
+    },
+    'getAllWeeklyDigests'
+  )
+
+  const rows = Array.isArray(payload)
+    ? payload
+    : (Array.isArray(payload?.digests) ? payload.digests : [])
+
+  return rows.map(mapWeeklyDigestRow)
 }
 
 export const getWeeklyDigestStatusColor = (status) => {
@@ -471,52 +598,58 @@ export const getAtRiskPatients = async () => {
     return mockGetAtRiskPatients()
   }
 
-  // Use latest digest per assigned patient and include patient name relation.
-  const { data, error } = await supabase
-    .from('weekly_health_digests')
-    .select('*, patients(name,condition)')
-    .order('week_start', { ascending: false })
+  return apiFirst(
+    () => apiClient.get('/clinician/analytics/at-risk'),
+    async () => {
+      // Use latest digest per assigned patient and include patient name relation.
+      const { data, error } = await supabase
+        .from('weekly_health_digests')
+        .select('*, patients(name,condition)')
+        .order('week_start', { ascending: false })
 
-  handleError(error, 'getAtRiskPatients')
+      handleError(error, 'getAtRiskPatients')
 
-  const latestByPatient = []
-  const seenPatientIds = new Set()
+      const latestByPatient = []
+      const seenPatientIds = new Set()
 
-  for (const row of data || []) {
-    if (seenPatientIds.has(row.patient_id)) {
-      continue
-    }
-    seenPatientIds.add(row.patient_id)
-    latestByPatient.push(row)
-  }
-
-  const patientIds = latestByPatient.map((row) => row.patient_id)
-  const latestActionDetailByPatientId = new Map()
-
-  if (patientIds.length) {
-    const { data: actionRows, error: actionError } = await supabase
-      .from('agent_actions')
-      .select('patient_id,detail,timestamp')
-      .in('patient_id', patientIds)
-      .order('timestamp', { ascending: false })
-
-    handleError(actionError, 'getAtRiskPatients.agent_actions')
-
-    for (const row of actionRows || []) {
-      if (!latestActionDetailByPatientId.has(row.patient_id)) {
-        latestActionDetailByPatientId.set(row.patient_id, row.detail)
+      for (const row of data || []) {
+        if (seenPatientIds.has(row.patient_id)) {
+          continue
+        }
+        seenPatientIds.add(row.patient_id)
+        latestByPatient.push(row)
       }
-    }
-  }
 
-  const mapped = latestByPatient
-    .map((row) => mapDigestToAtRiskPatient(mapWeeklyDigestRow(row), 0, latestActionDetailByPatientId))
-    .sort((a, b) => b.riskScore - a.riskScore)
+      const patientIds = latestByPatient.map((row) => row.patient_id)
+      const latestActionDetailByPatientId = new Map()
 
-  return mapped.map((row, idx) => ({
-    ...row,
-    rank: idx + 1,
-  }))
+      if (patientIds.length) {
+        const { data: actionRows, error: actionError } = await supabase
+          .from('agent_actions')
+          .select('patient_id,detail,timestamp')
+          .in('patient_id', patientIds)
+          .order('timestamp', { ascending: false })
+
+        handleError(actionError, 'getAtRiskPatients.agent_actions')
+
+        for (const row of actionRows || []) {
+          if (!latestActionDetailByPatientId.has(row.patient_id)) {
+            latestActionDetailByPatientId.set(row.patient_id, row.detail)
+          }
+        }
+      }
+
+      const mapped = latestByPatient
+        .map((row) => mapDigestToAtRiskPatient(mapWeeklyDigestRow(row), 0, latestActionDetailByPatientId))
+        .sort((a, b) => b.riskScore - a.riskScore)
+
+      return mapped.map((row, idx) => ({
+        ...row,
+        rank: idx + 1,
+      }))
+    },
+    'getAtRiskPatients'
+  )
 }
 
 export const getCohortOverview = async () => {
@@ -524,31 +657,37 @@ export const getCohortOverview = async () => {
     return mockGetCohortOverview()
   }
 
-  const { data, error } = await supabase
-    .from('weekly_health_digests')
-    .select('*')
+  return apiFirst(
+    () => apiClient.get('/clinician/analytics/cohort-overview'),
+    async () => {
+      const { data, error } = await supabase
+        .from('weekly_health_digests')
+        .select('*')
 
-  handleError(error, 'getCohortOverview')
+      handleError(error, 'getCohortOverview')
 
-  if (!data.length) {
-    return {
-      totalPatients: 0,
-      avgAdherence: 0,
-      avgGlucose: 0,
-    }
-  }
+      if (!data.length) {
+        return {
+          totalPatients: 0,
+          avgAdherence: 0,
+          avgGlucose: 0,
+        }
+      }
 
-  const totalPatients = new Set(data.map(d => d.patient_id)).size
-  const avgAdherence =
-    data.reduce((sum, d) => sum + (d.medication_adherence_pct || 0), 0) / data.length
-  const avgGlucose =
-    data.reduce((sum, d) => sum + (d.avg_fasting_glucose || 0), 0) / data.length
+      const totalPatients = new Set(data.map(d => d.patient_id)).size
+      const avgAdherence =
+        data.reduce((sum, d) => sum + (d.medication_adherence_pct || 0), 0) / data.length
+      const avgGlucose =
+        data.reduce((sum, d) => sum + (d.avg_fasting_glucose || 0), 0) / data.length
 
-  return {
-    totalPatients,
-    avgAdherence: Number(avgAdherence.toFixed(1)),
-    avgGlucose: Number(avgGlucose.toFixed(1)),
-  }
+      return {
+        totalPatients,
+        avgAdherence: Number(avgAdherence.toFixed(1)),
+        avgGlucose: Number(avgGlucose.toFixed(1)),
+      }
+    },
+    'getCohortOverview'
+  )
 }
 
 export const getTrends = async () => {
@@ -556,13 +695,25 @@ export const getTrends = async () => {
     return mockGetTrends()
   }
 
-  const { data, error } = await supabase
-    .from('weekly_health_digests')
-    .select('*')
-    .order('week_start', { ascending: true })
+  const payload = await apiFirst(
+    () => apiClient.get('/clinician/analytics/trends'),
+    async () => {
+      const { data, error } = await supabase
+        .from('weekly_health_digests')
+        .select('*')
+        .order('week_start', { ascending: true })
 
-  handleError(error, 'getTrends')
-  return data.map(mapWeeklyDigestRow)
+      handleError(error, 'getTrends')
+      return data
+    },
+    'getTrends'
+  )
+
+  const rows = Array.isArray(payload)
+    ? payload
+    : (Array.isArray(payload?.trends) ? payload.trends : [])
+
+  return rows.map(mapWeeklyDigestRow)
 }
 
 /**

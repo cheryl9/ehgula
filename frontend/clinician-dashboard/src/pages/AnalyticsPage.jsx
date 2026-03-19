@@ -25,7 +25,7 @@ export default function AnalyticsPage() {
       setIsLoading(true);
       setError('');
       try {
-        const [cohortData, atRiskData, trendData] = await Promise.all([
+        const [cohortResult, atRiskResult, trendResult] = await Promise.allSettled([
           getCohortOverview(),
           getAtRiskPatients(),
           getTrends(),
@@ -35,15 +35,32 @@ export default function AnalyticsPage() {
           return;
         }
 
-        setCohortRaw(cohortData || null);
-        setAtRiskRaw(Array.isArray(atRiskData) ? atRiskData : []);
-        setTrendsRaw(trendData || null);
+        const hasCohort = cohortResult.status === 'fulfilled';
+        const hasAtRisk = atRiskResult.status === 'fulfilled';
+        const hasTrends = trendResult.status === 'fulfilled';
+
+        if (hasCohort) {
+          setCohortRaw(cohortResult.value || null);
+        }
+
+        if (hasAtRisk) {
+          setAtRiskRaw(Array.isArray(atRiskResult.value) ? atRiskResult.value : []);
+        }
+
+        if (hasTrends) {
+          setTrendsRaw(trendResult.value || null);
+        }
+
+        if (!hasCohort && !hasAtRisk && !hasTrends) {
+          throw new Error('Failed to load analytics');
+        }
+
+        if (!hasCohort || !hasAtRisk || !hasTrends) {
+          setError('Some analytics failed to refresh. Showing latest available data.');
+        }
       } catch (err) {
         if (isMounted) {
           setError(err.message || 'Failed to load analytics');
-          setCohortRaw(null);
-          setAtRiskRaw([]);
-          setTrendsRaw(null);
         }
       } finally {
         if (isMounted) {
