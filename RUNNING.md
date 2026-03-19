@@ -59,6 +59,7 @@ cd backend
 python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
+
 Health check:
 
 ```bash
@@ -140,3 +141,5 @@ Then open the frontend URL shown by Vite.
   - Restart Vite after changing env values.
 - Browser shows CORS + 500:
   - Usually means backend crashed or threw an exception; check backend logs first.
+- Localhost/loopback mismatch:
+  - If frontend calls `localhost` but backend is bound to `127.0.0.1`, pin `VITE_API_BASE_URL=http://127.0.0.1:8000/api` and restart Vite.
