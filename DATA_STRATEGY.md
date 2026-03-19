@@ -10,7 +10,7 @@ Primary goals:
 - improve clinician visibility without manual data stitching
 - keep runtime access secure and auditable through backend mediation
 
-## 2. Current Architecture (March 2026)
+## 2. Current Architecture
 
 ### Runtime Data Path
 
@@ -107,6 +107,57 @@ Design principles:
 - least privilege by role
 - minimum necessary data exposure per view
 - explicit patient-to-clinician scope checks
+
+### Row Level Security (RLS)
+
+RLS is enabled on patient-linked tables in Supabase. Access is scoped by `auth.uid()` and clinician assignment.
+
+#### RLS access model
+
+- patient users can access only their own records
+- clinician users can access only records for patients assigned to them
+- unauthenticated users have no access to clinical data tables
+
+#### Policy mapping by table
+
+- `profiles`:
+	- user can read/update own profile where `profiles.id = auth.uid()`
+- `clinicians`:
+	- clinician can read own clinician row where `clinicians.user_id = auth.uid()`
+- `patients`:
+	- patient can read own row where `patients.user_id = auth.uid()`
+	- clinician can read patient rows linked through `clinician_patient_assignments`
+- `clinician_patient_assignments`:
+	- clinician can read rows where assignment clinician maps to `auth.uid()`
+- `glucose_readings`, `medication_plans`, `medication_dose_logs`, `meal_logs`, `exercise_logs`, `calendar_events`, `agent_actions`, `weekly_health_digests`, `appointments`:
+	- patient can read rows where `patient_id` belongs to own patient row
+	- clinician can read rows where `patient_id` is in clinician-assigned patient set
+
+#### Canonical assignment predicate used by clinician policies
+
+```sql
+patient_id IN (
+	SELECT cpa.patient_id
+	FROM clinician_patient_assignments cpa
+	JOIN clinicians c ON c.id = cpa.clinician_id
+	WHERE c.user_id = auth.uid()
+)
+```
+
+#### Canonical patient self-scope predicate
+
+```sql
+patient_id IN (
+	SELECT p.id
+	FROM patients p
+	WHERE p.user_id = auth.uid()
+)
+```
+
+#### Validation
+
+- role-based RLS verification is exercised through `backend/test_rls_as_patient.py`
+- tests should be run for both patient and clinician credentials before releases
 
 ## 6. API Surface for Clinician Dashboard
 
